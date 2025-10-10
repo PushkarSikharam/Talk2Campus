@@ -67,13 +67,13 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
       <div className="logo" style={{ display: 'flex', alignItems: 'center' }}>
   <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
     <img
-      src={require('../assets/tamucc-logo.png')}
+      src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZXalyh6AL_29ESL72VyQRITGCxrtyJBcIPQ&s"
       alt="Texas A&M University-Corpus Christi"
-      style={{ height: '45px', width: '47.5px', marginRight: '10px', objectFit: 'contain' }}
+      style={{ height: '32px', width: '32px', marginRight: '10px', objectFit: 'contain' }}
     />
     <span style={{ color: 'white', fontSize: '20px' }}>Talk2Campus</span>
   </Link>
-      </div> {screens.md ? (
+</div> {screens.md ? (
         // DESKTOP
         // Wrap Menu in a flex container that can grow, and disable overflow
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', minWidth: 0 }}>
