@@ -7,24 +7,17 @@ import {
   UserOutlined,
   GlobalOutlined,
   RobotOutlined,
-  MenuOutlined, // The hamburger icon
+  MenuOutlined,
 } from '@ant-design/icons';
 
-// useBreakpoint is the hook that detects screen size
 const { useBreakpoint } = Grid;
 
 const NavBar = ({ isLoggedIn, handleLogout }) => {
-  // State for controlling the mobile drawer's visibility
   const [drawerVisible, setDrawerVisible] = useState(false);
   const screens = useBreakpoint();
 
-  const showDrawer = () => {
-    setDrawerVisible(true);
-  };
-
-  const closeDrawer = () => {
-    setDrawerVisible(false);
-  };
+  const showDrawer = () => setDrawerVisible(true);
+  const closeDrawer = () => setDrawerVisible(false);
 
   const userMenu = (
     <Menu>
@@ -40,7 +33,6 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
     </Menu>
   );
 
-  // We define the menu items once to avoid repeating code
   const menuItems = (
     <>
       <Menu.Item key="map" icon={<GlobalOutlined />}>
@@ -51,13 +43,13 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
       </Menu.Item>
 
       {isLoggedIn ? (
-        <Menu.Item key="user-dropdown-mobile" style={{ marginLeft: 'auto' }}>
+        <Menu.Item key="user-dropdown-desktop" style={{ marginLeft: 'auto' }}>
           <Dropdown overlay={userMenu} placement="bottomRight">
             <Button type="primary" shape="circle" icon={<UserOutlined />} />
           </Dropdown>
         </Menu.Item>
       ) : (
-        <Menu.Item key="login-mobile">
+        <Menu.Item key="login-desktop">
           <Link to="/login" onClick={closeDrawer}>
             <Button type="primary">Login</Button>
           </Link>
@@ -74,19 +66,28 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
         </Link>
       </div>
 
-      {/* This is the key: Check if the screen is medium size or larger */}
       {screens.md ? (
-        // --- DESKTOP MENU --- (visible on screens >= 768px)
-        <Menu
-          theme="dark"
-          mode="horizontal"
-          selectable={false}
-          style={{ borderBottom: 'none', background: 'transparent', minWidth: 0 }}
-        >
-          {menuItems}
-        </Menu>
+        // DESKTOP
+        // Wrap Menu in a flex container that can grow, and disable overflow
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', minWidth: 0 }}>
+          <Menu
+            theme="dark"
+            mode="horizontal"
+            selectable={false}
+            // Turn off the '...' collapse
+            disabledOverflow
+            style={{
+              borderBottom: 'none',
+              background: 'transparent',
+              // optional: keep it from stretching vertically
+              lineHeight: '48px',
+            }}
+          >
+            {menuItems}
+          </Menu>
+        </div>
       ) : (
-        // --- MOBILE MENU --- (visible on screens < 768px)
+        // MOBILE
         <>
           <Button type="primary" onClick={showDrawer}>
             <MenuOutlined />
