@@ -93,14 +93,21 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
         <>
           <Button type="primary" onClick={showDrawer}>
             <MenuOutlined />
-          </Button>
-          <Drawer
+          </Button>          <Drawer
             title="Menu"
             placement="right"
             onClose={closeDrawer}
             open={drawerVisible}
+            styles={{
+              body: { backgroundColor: 'rgba(0, 127, 62, 0.4)', padding: '0' },
+              header: { backgroundColor: 'rgba(0, 127, 62, 0.4)', borderBottom: '1px solid rgba(0, 127, 62, 0.6)' }
+            }}
           >
-            <Menu mode="vertical" selectable={false}>
+            <Menu 
+              mode="vertical" 
+              selectable={false}
+              style={{ backgroundColor: 'rgba(0, 127, 62, 0.4)', border: 'none' }}
+            >
               {menuItems}
             </Menu>
           </Drawer>
