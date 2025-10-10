@@ -48,11 +48,18 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
           </Dropdown>
         </Menu.Item>
       ) : (
-        <Menu.Item key="login-desktop">
-          <Link to="/login" onClick={closeDrawer}>
-            <Button type="primary">Login</Button>
-          </Link>
-        </Menu.Item>
+        <>
+          <Menu.Item key="login-desktop">
+            <Link to="/login" onClick={closeDrawer}>
+              <Button type="primary">Login</Button>
+            </Link>
+          </Menu.Item>
+          <Menu.Item key="signup-desktop">
+            <Link to="/signup" onClick={closeDrawer}>
+              <Button type="primary">Sign Up</Button>
+            </Link>
+          </Menu.Item>
+        </>
       )}
     </>
   );

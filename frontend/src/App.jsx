@@ -9,6 +9,7 @@ import AIAgent from './pages/AIAgent';
 import Login from './pages/Login';
 import EditProfile from './pages/EditProfile';
 import EditClassSchedule from './pages/EditClassSchedule';
+import SignUp from './pages/SignUp';
 // We need to import Layout a specific way for this structure
 import { Layout } from 'antd';
 
@@ -41,6 +42,7 @@ const App = () => {
               <Route path="/login" element={<Login handleLogin={handleLogin} />} />
               <Route path="/edit-profile" element={<EditProfile />} />
               <Route path="/edit-class-schedule" element={<EditClassSchedule />} />
+              <Route path="/signup" element={<SignUp />} />
               <Route path="/" element={<InteractiveMap />} />
             </Routes>
           </Content>
