@@ -27,9 +27,8 @@ const App = () => {
 
   return (
     <Router>
-      {/* This structure is more explicit and prevents the sidebar bug */}
-      <Layout style={{ minHeight: '100vh', minWidth:'100vw' }}>
-        <Header>
+      {/* This structure is more explicit and prevents the sidebar bug */}      <Layout style={{ minHeight: '100vh', minWidth:'100vw' }}>
+        <Header style={{ background: '#0067c5', padding: 0 }}>
           {/* We remove the custom padding from Header and let NavBar handle its own width */}
           <NavBar isLoggedIn={isLoggedIn} handleLogout={handleLogout} />
         </Header>

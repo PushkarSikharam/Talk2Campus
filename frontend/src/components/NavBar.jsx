@@ -32,14 +32,13 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
       </Menu.Item>
     </Menu>
   );
-
   const menuItems = (
     <>
-      <Menu.Item key="map" icon={<GlobalOutlined />}>
-        <Link to="/interactive-map" onClick={closeDrawer}>Interactive Map</Link>
+      <Menu.Item key="map" icon={<GlobalOutlined />} style={{ color: 'white' }}>
+        <Link to="/interactive-map" onClick={closeDrawer} style={{ color: 'white' }}>Interactive Map</Link>
       </Menu.Item>
-      <Menu.Item key="ai" icon={<RobotOutlined />}>
-        <Link to="/ai-agent" onClick={closeDrawer}>AI Agent</Link>
+      <Menu.Item key="ai" icon={<RobotOutlined />} style={{ color: 'white' }}>
+        <Link to="/ai-agent" onClick={closeDrawer} style={{ color: 'white' }}>AI Agent</Link>
       </Menu.Item>
 
       {isLoggedIn ? (
@@ -57,30 +56,33 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
       )}
     </>
   );
-
   return (
-    <Flex justify="space-between" align="center" style={{ width: '100%' }}>
+    <Flex justify="space-between" align="center" style={{ 
+      width: '100%', 
+      background: '#0067c5',
+      padding: '0 20px',
+      height: '64px',
+      minHeight: '64px'
+    }}>
       <div className="logo" style={{ color: 'white', fontSize: '20px' }}>
         <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>
           Talk2Campus
         </Link>
-      </div>
-
-      {screens.md ? (
+      </div>      {screens.md ? (
         // DESKTOP
         // Wrap Menu in a flex container that can grow, and disable overflow
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', minWidth: 0 }}>
           <Menu
-            theme="dark"
             mode="horizontal"
             selectable={false}
             // Turn off the '...' collapse
             disabledOverflow
             style={{
               borderBottom: 'none',
-              background: 'transparent',
+              background: '#0067c5',
               // optional: keep it from stretching vertically
               lineHeight: '48px',
+              color: 'white',
             }}
           >
             {menuItems}
