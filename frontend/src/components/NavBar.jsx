@@ -67,7 +67,7 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
       <div className="logo" style={{ display: 'flex', alignItems: 'center' }}>
   <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
     <img
-      src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZXalyh6AL_29ESL72VyQRITGCxrtyJBcIPQ&s"
+      src={require('../assets/tamucc-logo.png')}
       alt="Texas A&M University-Corpus Christi"
       style={{ height: '45px', width: '47.5px', marginRight: '10px', objectFit: 'contain' }}
     />
