@@ -8,6 +8,7 @@ import {
   GlobalOutlined,
   RobotOutlined,
   MenuOutlined,
+  HomeOutlined,
 } from '@ant-design/icons';
 
 const { useBreakpoint } = Grid;
@@ -34,6 +35,9 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
   );
   const menuItems = (
     <>
+      <Menu.Item key="home" icon={<HomeOutlined />} style={{ color: 'white' }}>
+        <Link to="/" onClick={closeDrawer} style={{ color: 'white' }}>Home</Link>
+      </Menu.Item>
       <Menu.Item key="map" icon={<GlobalOutlined />} style={{ color: 'white' }}>
         <Link to="/interactive-map" onClick={closeDrawer} style={{ color: 'white' }}>Interactive Map</Link>
       </Menu.Item>
@@ -51,12 +55,14 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
         <>
           <Menu.Item key="login-desktop">
             <Link to="/login" onClick={closeDrawer}>
-              <Button type="primary">Login</Button>
+              <Button type="primary" style={{ outline: 'none', boxShadow: 'none' }} className="no-focus-outline">Login</Button>
             </Link>
           </Menu.Item>
           <Menu.Item key="signup-desktop">
             <Link to="/signup" onClick={closeDrawer}>
-              <Button type="primary">Sign Up</Button>
+              <Button type="primary" style={{ outline: 'none', boxShadow: 'none' }}
+                className="no-focus-outline"
+              >Sign Up</Button>
             </Link>
           </Menu.Item>
         </>
@@ -128,5 +134,15 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
     </Flex>
   );
 };
+
+// Remove focus ring for Sign Up button
+const style = document.createElement('style');
+style.innerHTML = `
+  .no-focus-outline:focus, .no-focus-outline:active {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+`;
+document.head.appendChild(style);
 
 export default NavBar;
