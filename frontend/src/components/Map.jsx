@@ -32,8 +32,8 @@ const BuildingsPolygons = () => {
 const Map = () => (
   <MapContainer center={[27.7136, -97.3252]} zoom={15} style={{ height: '100%', width: '100%' }}>
     <TileLayer
-      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      attribution='Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+      url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
     />
     <BuildingsPolygons />
   </MapContainer>

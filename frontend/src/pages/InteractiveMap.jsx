@@ -62,7 +62,7 @@ function InteractiveMap() {
         />
       </Sider>
       <Content style={{ background: '#fff', padding: 16 }}>
-        Panel 2
+        Events Panel
       </Content>
     </Layout>
   );
