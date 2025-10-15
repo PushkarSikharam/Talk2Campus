@@ -12,7 +12,7 @@ const features = [
   },
   {
     icon: <CalendarOutlined style={{ fontSize: 32, color: '#0067c5' }} />,
-    title: 'Real-Time Event Updates',
+    title: 'University Event Updates',
     desc: 'Stay informed with live notifications on campus events and activities.',
   },
   {
