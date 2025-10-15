@@ -48,7 +48,7 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
       {isLoggedIn ? (
         <Menu.Item key="user-dropdown-desktop" style={{ marginLeft: 'auto' }}>
           <Dropdown overlay={userMenu} placement="bottomRight">
-            <Button type="primary" shape="circle" icon={<UserOutlined />} />
+            <Button type="primary" shape="circle" icon={<UserOutlined />} style={{ outline: 'none', boxShadow: 'none' }} className="no-focus-outline" />
           </Dropdown>
         </Menu.Item>
       ) : (
@@ -72,10 +72,14 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
   return (
     <Flex justify="space-between" align="center" style={{ 
       width: '100%', 
-      background: '#0067c5',
-      padding: '0 20px',
-      height: '64px',
-      minHeight: '64px'
+      background: 'linear-gradient(90deg, #43cea2 0%, #185a9d 100%)',
+      boxShadow: '0 2px 16px 0 rgba(99,179,237,0.10)',
+      padding: '0 32px',
+      height: '56px',
+      minHeight: '56px',
+  // borderBottom removed for cleaner look
+      backdropFilter: 'blur(8px)',
+      WebkitBackdropFilter: 'blur(8px)',
     }}>
       <div className="logo" style={{ display: 'flex', alignItems: 'center' }}>
         <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
@@ -89,14 +93,17 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
           <Menu
             mode="horizontal"
             selectable={false}
-            // Turn off the '...' collapse
             disabledOverflow
             style={{
               borderBottom: 'none',
-              background: '#0067c5',
-              // optional: keep it from stretching vertically
-              lineHeight: '48px',
+              background: 'rgba(255,255,255,0.10)',
+              borderRadius: 12,
+              marginTop: 8,
+              marginBottom: 8,
+              padding: '0 8px',
+              lineHeight: '40px',
               color: 'white',
+              boxShadow: '0 2px 8px 0 rgba(99,179,237,0.07)',
             }}
           >
             {menuItems}
