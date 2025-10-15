@@ -8,6 +8,7 @@ import {
   GlobalOutlined,
   RobotOutlined,
   MenuOutlined,
+  HomeOutlined,
 } from '@ant-design/icons';
 
 const { useBreakpoint } = Grid;
@@ -34,6 +35,9 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
   );
   const menuItems = (
     <>
+      <Menu.Item key="home" icon={<HomeOutlined />} style={{ color: 'white' }}>
+        <Link to="/" onClick={closeDrawer} style={{ color: 'white' }}>Home</Link>
+      </Menu.Item>
       <Menu.Item key="map" icon={<GlobalOutlined />} style={{ color: 'white' }}>
         <Link to="/interactive-map" onClick={closeDrawer} style={{ color: 'white' }}>Interactive Map</Link>
       </Menu.Item>
@@ -44,19 +48,21 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
       {isLoggedIn ? (
         <Menu.Item key="user-dropdown-desktop" style={{ marginLeft: 'auto' }}>
           <Dropdown overlay={userMenu} placement="bottomRight">
-            <Button type="primary" shape="circle" icon={<UserOutlined />} />
+            <Button type="primary" shape="circle" icon={<UserOutlined />} style={{ outline: 'none', boxShadow: 'none' }} className="no-focus-outline" />
           </Dropdown>
         </Menu.Item>
       ) : (
         <>
           <Menu.Item key="login-desktop">
             <Link to="/login" onClick={closeDrawer}>
-              <Button type="primary">Login</Button>
+              <Button type="primary" style={{ outline: 'none', boxShadow: 'none' }} className="no-focus-outline">Login</Button>
             </Link>
           </Menu.Item>
           <Menu.Item key="signup-desktop">
             <Link to="/signup" onClick={closeDrawer}>
-              <Button type="primary">Sign Up</Button>
+              <Button type="primary" style={{ outline: 'none', boxShadow: 'none' }}
+                className="no-focus-outline"
+              >Sign Up</Button>
             </Link>
           </Menu.Item>
         </>
@@ -66,35 +72,38 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
   return (
     <Flex justify="space-between" align="center" style={{ 
       width: '100%', 
-      background: '#0067c5',
-      padding: '0 20px',
-      height: '64px',
-      minHeight: '64px'
+      background: 'linear-gradient(90deg, #43cea2 0%, #185a9d 100%)',
+      boxShadow: '0 2px 16px 0 rgba(99,179,237,0.10)',
+      padding: '0 32px',
+      height: '56px',
+      minHeight: '56px',
+  // borderBottom removed for cleaner look
+      backdropFilter: 'blur(8px)',
+      WebkitBackdropFilter: 'blur(8px)',
     }}>
       <div className="logo" style={{ display: 'flex', alignItems: 'center' }}>
-  <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
-    <img
-      src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZXalyh6AL_29ESL72VyQRITGCxrtyJBcIPQ&s"
-      alt="Texas A&M University-Corpus Christi"
-      style={{ height: '32px', width: '32px', marginRight: '10px', objectFit: 'contain' }}
-    />
-    <span style={{ color: 'white', fontSize: '20px' }}>Talk2Campus</span>
-  </Link>
-</div> {screens.md ? (
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          <span style={{ color: 'white', fontSize: '20px' }}>Talk2Campus</span>
+        </Link>
+      </div>
+      {screens.md ? (
         // DESKTOP
         // Wrap Menu in a flex container that can grow, and disable overflow
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', minWidth: 0 }}>
           <Menu
             mode="horizontal"
             selectable={false}
-            // Turn off the '...' collapse
             disabledOverflow
             style={{
               borderBottom: 'none',
-              background: '#0067c5',
-              // optional: keep it from stretching vertically
-              lineHeight: '48px',
+              background: 'rgba(255,255,255,0.10)',
+              borderRadius: 12,
+              marginTop: 8,
+              marginBottom: 8,
+              padding: '0 8px',
+              lineHeight: '40px',
               color: 'white',
+              boxShadow: '0 2px 8px 0 rgba(99,179,237,0.07)',
             }}
           >
             {menuItems}
@@ -128,5 +137,15 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
     </Flex>
   );
 };
+
+// Remove focus ring for Sign Up button
+const style = document.createElement('style');
+style.innerHTML = `
+  .no-focus-outline:focus, .no-focus-outline:active {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+`;
+document.head.appendChild(style);
 
 export default NavBar;

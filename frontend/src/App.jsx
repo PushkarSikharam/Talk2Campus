@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import NavBar from './components/NavBar';
 import InteractiveMap from './pages/InteractiveMap';
+import Home from './pages/Home';
 import AIAgent from './pages/AIAgent';
 import Login from './pages/Login';
 import EditProfile from './pages/EditProfile';
@@ -29,7 +30,7 @@ const App = () => {
   return (
     <Router>
       {/* This structure is more explicit and prevents the sidebar bug */}      <Layout style={{ minHeight: '100vh', minWidth:'100vw' }}>
-        <Header style={{ background: '#0067c5', padding: 0 }}>
+  <Header style={{ background: 'transparent', padding: 0, boxShadow: 'none' }}>
           {/* We remove the custom padding from Header and let NavBar handle its own width */}
           <NavBar isLoggedIn={isLoggedIn} handleLogout={handleLogout} />
         </Header>
@@ -43,7 +44,7 @@ const App = () => {
               <Route path="/edit-profile" element={<EditProfile />} />
               <Route path="/edit-class-schedule" element={<EditClassSchedule />} />
               <Route path="/signup" element={<SignUp />} />
-              <Route path="/" element={<InteractiveMap />} />
+              <Route path="/" element={<Home />} />
             </Routes>
           </Content>
         </Layout>
