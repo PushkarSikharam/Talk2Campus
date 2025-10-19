@@ -37,7 +37,7 @@ const Home = () => (
       <Row gutter={[24, 24]} justify="center" style={{ marginBottom: 32 }}>
         {features.map((f, i) => (
           <Col xs={24} sm={12} md={8} key={i}>
-            <Card bordered={false} style={{ textAlign: 'center', minHeight: 180 }}>
+            <Card variant="borderless" style={{ textAlign: 'center', minHeight: 180 }}>
               {f.icon}
               <Title level={4} style={{ marginTop: 16 }}>{f.title}</Title>
               <Paragraph>{f.desc}</Paragraph>
