@@ -2,20 +2,41 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Card, Flex } from 'antd';
+import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 
 const Login = ({ handleLogin }) => {
   const navigate = useNavigate();
+  
 
-  const onFinish = (values) => {
-    console.log('Dummy login successful with:', values);
-    handleLogin();
-    navigate('/');
+  const onFinish = async (values) => {
+    try {
+      const resp = await fetch('http://localhost:8000/login', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: values.username, password: values.password }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        console.error('Login failed', data);
+        message.error(data.detail || 'Login failed');
+        return;
+      }
+      message.success('Login successful');
+      // allow the toast to show briefly before navigating
+      setTimeout(() => {
+        handleLogin();
+        navigate('/interactive-map');
+      }, 700);
+    } catch (e) {
+      console.error('Login error', e);
+      message.error('Network error during login');
+    }
   };
 
   return (
-    <Flex align="center" justify="center" style={{ paddingTop: '50px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: '50px' }}>
       <Card title="Talk2Campus Login" style={{ width: 350 }}>
         <Form
           name="login"
@@ -42,7 +63,7 @@ const Login = ({ handleLogin }) => {
           </Form.Item>
         </Form>
       </Card>
-    </Flex>
+    </div>
   );
 };
 

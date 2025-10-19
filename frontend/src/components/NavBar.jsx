@@ -1,8 +1,8 @@
 // src/components/NavBar.jsx
 
 import React, { useState } from 'react';
-import { Menu, Dropdown, Button, Flex, Drawer, Grid } from 'antd';
-import { Link } from 'react-router-dom';
+import { Menu, Dropdown, Button, Drawer, Grid } from 'antd';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   UserOutlined,
   GlobalOutlined,
@@ -16,84 +16,60 @@ const { useBreakpoint } = Grid;
 const NavBar = ({ isLoggedIn, handleLogout }) => {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const screens = useBreakpoint();
+  const navigate = useNavigate();
 
   const showDrawer = () => setDrawerVisible(true);
   const closeDrawer = () => setDrawerVisible(false);
 
-  const userMenu = (
-    <Menu>
-      <Menu.Item key="profile">
-        <Link to="/edit-profile" onClick={closeDrawer}>Edit Profile</Link>
-      </Menu.Item>
-      <Menu.Item key="schedule">
-        <Link to="/edit-class-schedule" onClick={closeDrawer}>Edit Class Schedule</Link>
-      </Menu.Item>
-      <Menu.Item key="logout" onClick={() => { handleLogout(); closeDrawer(); }}>
-        Logout
-      </Menu.Item>
-    </Menu>
-  );
-  const menuItems = (
-    <>
-      <Menu.Item key="home" icon={<HomeOutlined />} style={{ color: 'white' }}>
-        <Link to="/" onClick={closeDrawer} style={{ color: 'white' }}>Home</Link>
-      </Menu.Item>
-      <Menu.Item key="map" icon={<GlobalOutlined />} style={{ color: 'white' }}>
-        <Link to="/interactive-map" onClick={closeDrawer} style={{ color: 'white' }}>Interactive Map</Link>
-      </Menu.Item>
-      <Menu.Item key="ai" icon={<RobotOutlined />} style={{ color: 'white' }}>
-        <Link to="/ai-agent" onClick={closeDrawer} style={{ color: 'white' }}>AI Agent</Link>
-      </Menu.Item>
+  const userMenuItems = [
+    { key: 'profile', label: <Link to="/edit-profile" onClick={closeDrawer}>Edit Profile</Link> },
+    { key: 'schedule', label: <Link to="/edit-class-schedule" onClick={closeDrawer}>Edit Class Schedule</Link> },
+    { key: 'logout', label: 'Logout', onClick: () => { handleLogout(); closeDrawer(); navigate('/interactive-map'); } },
+  ];
 
-      {isLoggedIn ? (
-        <Menu.Item key="user-dropdown-desktop" style={{ marginLeft: 'auto' }}>
-          <Dropdown overlay={userMenu} placement="bottomRight">
-            <Button type="primary" shape="circle" icon={<UserOutlined />} style={{ outline: 'none', boxShadow: 'none' }} className="no-focus-outline" />
-          </Dropdown>
-        </Menu.Item>
-      ) : (
-        <>
-          <Menu.Item key="login-desktop">
-            <Link to="/login" onClick={closeDrawer}>
-              <Button type="primary" style={{ outline: 'none', boxShadow: 'none' }} className="no-focus-outline">Login</Button>
-            </Link>
-          </Menu.Item>
-          <Menu.Item key="signup-desktop">
-            <Link to="/signup" onClick={closeDrawer}>
-              <Button type="primary" style={{ outline: 'none', boxShadow: 'none' }}
-                className="no-focus-outline"
-              >Sign Up</Button>
-            </Link>
-          </Menu.Item>
-        </>
-      )}
-    </>
-  );
+  const menuItemsArray = [
+    { key: 'home', icon: <HomeOutlined />, label: <Link to="/" onClick={closeDrawer} style={{ color: 'white' }}>Home</Link> },
+    { key: 'map', icon: <GlobalOutlined />, label: <Link to="/interactive-map" onClick={closeDrawer} style={{ color: 'white' }}>Interactive Map</Link> },
+    { key: 'ai', icon: <RobotOutlined />, label: <Link to="/ai-agent" onClick={closeDrawer} style={{ color: 'white' }}>AI Agent</Link> },
+  ];
+
+  if (isLoggedIn) {
+    menuItemsArray.push({ key: 'user-dropdown-desktop', label: (
+      <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+        <Button type="primary" shape="circle" icon={<UserOutlined />} style={{ outline: 'none', boxShadow: 'none' }} className="no-focus-outline" />
+      </Dropdown>
+    ), style: { marginLeft: 'auto' } });
+  } else {
+    menuItemsArray.push({ key: 'login-desktop', label: <Link to="/login" onClick={closeDrawer}><Button type="primary" style={{ outline: 'none', boxShadow: 'none' }} className="no-focus-outline">Login</Button></Link> });
+    menuItemsArray.push({ key: 'signup-desktop', label: <Link to="/signup" onClick={closeDrawer}><Button type="primary" style={{ outline: 'none', boxShadow: 'none' }} className="no-focus-outline">Sign Up</Button></Link> });
+  }
+
   return (
-    <Flex justify="space-between" align="center" style={{ 
-      width: '100%', 
+    <div style={{
+      width: '100%',
       background: 'linear-gradient(90deg, #43cea2 0%, #185a9d 100%)',
       boxShadow: '0 2px 16px 0 rgba(99,179,237,0.10)',
       padding: '0 32px',
       height: '56px',
       minHeight: '56px',
-  // borderBottom removed for cleaner look
       backdropFilter: 'blur(8px)',
       WebkitBackdropFilter: 'blur(8px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
     }}>
       <div className="logo" style={{ display: 'flex', alignItems: 'center' }}>
         <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
           <span style={{ color: 'white', fontSize: '20px' }}>Talk2Campus</span>
         </Link>
       </div>
+
       {screens.md ? (
-        // DESKTOP
-        // Wrap Menu in a flex container that can grow, and disable overflow
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', minWidth: 0 }}>
           <Menu
             mode="horizontal"
             selectable={false}
-            disabledOverflow
+            items={menuItemsArray}
             style={{
               borderBottom: 'none',
               background: 'rgba(255,255,255,0.10)',
@@ -105,16 +81,14 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
               color: 'white',
               boxShadow: '0 2px 8px 0 rgba(99,179,237,0.07)',
             }}
-          >
-            {menuItems}
-          </Menu>
+          />
         </div>
       ) : (
-        // MOBILE
         <>
           <Button type="primary" onClick={showDrawer}>
             <MenuOutlined />
-          </Button>          <Drawer
+          </Button>
+          <Drawer
             title="Menu"
             placement="right"
             onClose={closeDrawer}
@@ -124,17 +98,16 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
               header: { backgroundColor: 'rgba(0, 127, 62, 0.4)', borderBottom: '1px solid rgba(0, 127, 62, 0.6)' }
             }}
           >
-            <Menu 
-              mode="vertical" 
+            <Menu
+              mode="vertical"
               selectable={false}
+              items={menuItemsArray}
               style={{ backgroundColor: 'rgba(0, 127, 62, 0.4)', border: 'none' }}
-            >
-              {menuItems}
-            </Menu>
+            />
           </Drawer>
         </>
       )}
-    </Flex>
+    </div>
   );
 };
 
