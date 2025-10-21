@@ -1,7 +1,7 @@
 // src/components/NavBar.jsx
 
 import React, { useState } from 'react';
-import { Menu, Dropdown, Button, Drawer, Grid } from 'antd';
+import { Menu, Dropdown, Button, Drawer, Grid, Badge } from 'antd';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   UserOutlined,
@@ -9,6 +9,7 @@ import {
   RobotOutlined,
   MenuOutlined,
   HomeOutlined,
+  BellOutlined,
 } from '@ant-design/icons';
 
 const { useBreakpoint } = Grid;
@@ -34,75 +35,177 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
   ];
 
   if (isLoggedIn) {
+    menuItemsArray.push({ 
+      key: 'notifications', 
+      label: (
+        <Badge count={3} size="small">
+          <BellOutlined style={{ fontSize: 20, color: 'white' }} />
+        </Badge>
+      ),
+      style: { marginLeft: 'auto' } 
+    });
     menuItemsArray.push({ key: 'user-dropdown-desktop', label: (
       <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-        <Button type="primary" shape="circle" icon={<UserOutlined />} style={{ outline: 'none', boxShadow: 'none' }} className="no-focus-outline" />
+        <Button 
+          type="primary" 
+          shape="circle" 
+          icon={<UserOutlined />} 
+          style={{ 
+            outline: 'none', 
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            background: 'white',
+            color: '#667eea',
+            border: 'none',
+          }} 
+          className="no-focus-outline" 
+        />
       </Dropdown>
-    ), style: { marginLeft: 'auto' } });
+    ), style: { marginLeft: isLoggedIn ? '8px' : 'auto' } });
   } else {
-    menuItemsArray.push({ key: 'login-desktop', label: <Link to="/login" onClick={closeDrawer}><Button type="primary" style={{ outline: 'none', boxShadow: 'none' }} className="no-focus-outline">Login</Button></Link> });
-    menuItemsArray.push({ key: 'signup-desktop', label: <Link to="/signup" onClick={closeDrawer}><Button type="primary" style={{ outline: 'none', boxShadow: 'none' }} className="no-focus-outline">Sign Up</Button></Link> });
+    menuItemsArray.push({ 
+      key: 'login-desktop', 
+      label: (
+        <Link to="/login" onClick={closeDrawer}>
+          <Button 
+            style={{ 
+              outline: 'none', 
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              background: 'white',
+              color: '#667eea',
+              border: 'none',
+              fontWeight: 600,
+            }} 
+            className="no-focus-outline"
+          >
+            Login
+          </Button>
+        </Link>
+      ),
+      style: { marginLeft: 'auto' }
+    });
+    menuItemsArray.push({ 
+      key: 'signup-desktop', 
+      label: (
+        <Link to="/signup" onClick={closeDrawer}>
+          <Button 
+            type="primary" 
+            style={{ 
+              outline: 'none', 
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+              border: 'none',
+              fontWeight: 600,
+            }} 
+            className="no-focus-outline"
+          >
+            Sign Up
+          </Button>
+        </Link>
+      ) 
+    });
   }
 
   return (
     <div style={{
       width: '100%',
-      background: 'linear-gradient(90deg, #43cea2 0%, #185a9d 100%)',
-      boxShadow: '0 2px 16px 0 rgba(99,179,237,0.10)',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      boxShadow: '0 4px 20px rgba(102, 126, 234, 0.3)',
       padding: '0 32px',
-      height: '56px',
-      minHeight: '56px',
-      backdropFilter: 'blur(8px)',
-      WebkitBackdropFilter: 'blur(8px)',
+      height: '64px',
+      minHeight: '64px',
+      backdropFilter: 'blur(10px)',
+      WebkitBackdropFilter: 'blur(10px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
+      position: 'relative',
+      zIndex: 100,
     }}>
-      <div className="logo" style={{ display: 'flex', alignItems: 'center' }}>
+      {/* Decorative gradient overlay */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'radial-gradient(circle at 30% 50%, rgba(255,255,255,0.1) 0%, transparent 60%)',
+        pointerEvents: 'none',
+      }} />
+
+      <div className="logo" style={{ display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1 }}>
         <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
-          <span style={{ color: 'white', fontSize: '20px' }}>Talk2Campus</span>
+          <span style={{ 
+            color: 'white', 
+            fontSize: '24px',
+            fontWeight: 700,
+            textShadow: '0 2px 10px rgba(0,0,0,0.1)',
+            letterSpacing: '-0.5px',
+          }}>
+            🎓 Talk2Campus
+          </span>
         </Link>
       </div>
 
       {screens.md ? (
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', minWidth: 0 }}>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', minWidth: 0, position: 'relative', zIndex: 1 }}>
           <Menu
             mode="horizontal"
             selectable={false}
             items={menuItemsArray}
             style={{
               borderBottom: 'none',
-              background: 'rgba(255,255,255,0.10)',
-              borderRadius: 12,
+              background: 'rgba(255,255,255,0.15)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: 16,
               marginTop: 8,
               marginBottom: 8,
-              padding: '0 8px',
-              lineHeight: '40px',
+              padding: '0 12px',
+              lineHeight: '48px',
               color: 'white',
-              boxShadow: '0 2px 8px 0 rgba(99,179,237,0.07)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
             }}
           />
         </div>
       ) : (
         <>
-          <Button type="primary" onClick={showDrawer}>
-            <MenuOutlined />
-          </Button>
+          <Button 
+            type="primary" 
+            onClick={showDrawer}
+            icon={<MenuOutlined />}
+            style={{
+              background: 'rgba(255,255,255,0.2)',
+              border: 'none',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              position: 'relative',
+              zIndex: 1,
+            }}
+          />
           <Drawer
-            title="Menu"
+            title={<span style={{ fontSize: 20, fontWeight: 600 }}>Menu</span>}
             placement="right"
             onClose={closeDrawer}
             open={drawerVisible}
             styles={{
-              body: { backgroundColor: 'rgba(0, 127, 62, 0.4)', padding: '0' },
-              header: { backgroundColor: 'rgba(0, 127, 62, 0.4)', borderBottom: '1px solid rgba(0, 127, 62, 0.6)' }
+              body: { 
+                background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.95) 0%, rgba(118, 75, 162, 0.95) 100%)',
+                padding: '0' 
+              },
+              header: { 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderBottom: '1px solid rgba(255,255,255,0.2)',
+                color: 'white',
+              }
             }}
           >
             <Menu
               mode="vertical"
               selectable={false}
               items={menuItemsArray}
-              style={{ backgroundColor: 'rgba(0, 127, 62, 0.4)', border: 'none' }}
+              style={{ 
+                background: 'transparent',
+                border: 'none',
+                color: 'white',
+              }}
             />
           </Drawer>
         </>
@@ -111,12 +214,23 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
   );
 };
 
-// Remove focus ring for Sign Up button
+// Enhanced styles for better interactivity
 const style = document.createElement('style');
 style.innerHTML = `
   .no-focus-outline:focus, .no-focus-outline:active {
     outline: none !important;
-    box-shadow: none !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  }
+  
+  .no-focus-outline:hover {
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+  }
+  
+  .quick-question-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+    border-color: #667eea !important;
   }
 `;
 document.head.appendChild(style);
