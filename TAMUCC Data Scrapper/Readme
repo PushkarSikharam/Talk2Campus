@@ -1,0 +1,19 @@
+This code file contains a scraper designed to crawl the entire tamucc.edu domain.
+It automatically discovers every hyperlink inside the domain, scrapes the content, extracts PDFs, follows unlimited pagination, and stores all content in a JSON Lines (JSONL) dataset for downstream use in LLM training or embedding vector stores (FAISS, Pinecone, Chroma, etc).
+
+--> How It Works: 
+1. Start from the root URL https://www.tamucc.edu/
+2. Add this URL to to_visit queue
+3. Pop URLs from queue one at a time
+4. For each URL:
+Request URL
+Detect type (HTML or PDF)
+Extract text accordingly
+Append extracted result to memory list
+Parse HTML to discover new internal links
+5. Detect pagination patterns and push them to queue
+6. Continue until there are no more new URLs on domain
+7. All collected documents are stored in scraped_data.jsonl
+
+Requirements Needed:
+pip install requests beautifulsoup4 lxml numpy tqdm PyPDF2 retrying
