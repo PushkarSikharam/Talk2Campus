@@ -1,33 +1,35 @@
 import React, { useState } from 'react';
-import { Table, Button, Modal, Form, Input, TimePicker, DatePicker, Select, Space, Card } from 'antd';
+import axios from 'axios';
+import { Table, Button, Modal, Form, Input, TimePicker, DatePicker, Select, Space, Card, message } from 'antd';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-const defaultSchedule = [
-  {
-    key: '1',
-    course: 'CSCI 1234',
-    name: 'Intro to Programming',
-    days: ['Mon', 'Wed', 'Fri'],
-    time: ['09:00', '10:15'],
-    dates: [dayjs('2025-08-25'), dayjs('2025-12-10')],
-  },
-  {
-    key: '2',
-    course: 'MATH 2345',
-    name: 'Calculus II',
-    days: ['Tue', 'Thu'],
-    time: ['11:00', '12:15'],
-    dates: [dayjs('2025-08-25'), dayjs('2025-12-10')],
-  },
-];
+// Remove defaultSchedule, fetch from backend instead
 
 const daysOptions = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 
 const ClassSchedule = () => {
-  const [schedule, setSchedule] = useState(defaultSchedule);
+  const [schedule, setSchedule] = useState([]);
+  // Fetch schedules from backend
+  React.useEffect(() => {
+    const fetchSchedules = async () => {
+      try {
+  const res = await axios.get('http://localhost:8000/class_schedule', { withCredentials: true });
+        // Convert dates to dayjs objects for display
+        const data = res.data.map((item, idx) => ({
+          ...item,
+          key: item.id || idx.toString(),
+          dates: item.dates.map(d => dayjs(d)),
+        }));
+        setSchedule(data);
+      } catch (err) {
+        console.error('Failed to fetch schedules', err);
+      }
+    };
+    fetchSchedules();
+  }, []);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -52,16 +54,32 @@ const ClassSchedule = () => {
     form.resetFields();
   };
 
-  const handleUpdate = () => {
-    form.validateFields().then(values => {
+  const handleUpdate = async () => {
+    try {
+      const values = await form.validateFields();
       if (isAdd) {
         const newClass = {
           ...values,
           key: (schedule.length + 1).toString(),
           time: values.time.map(t => t.format('HH:mm')),
-          dates: values.dates,
+          dates: values.dates.map(d => d.format('YYYY-MM-DD')),
         };
-        setSchedule([...schedule, newClass]);
+        // Send to backend
+        await axios.post('http://localhost:8000/class_schedule', {
+          course: newClass.course,
+          name: newClass.name,
+          days: newClass.days,
+          time: newClass.time,
+          dates: newClass.dates,
+        }, { withCredentials: true });
+        // Refetch from backend
+  const res = await axios.get('http://localhost:8000/class_schedule', { withCredentials: true });
+        const data = res.data.map((item, idx) => ({
+          ...item,
+          key: item.id || idx.toString(),
+          dates: item.dates.map(d => dayjs(d)),
+        }));
+        setSchedule(data);
       } else {
         const updated = schedule.map(item =>
           item.key === editing.key
@@ -77,8 +95,18 @@ const ClassSchedule = () => {
       }
       setModalOpen(false);
       setEditing(null);
-      setIsAdd(false);
-    });
+      setIsAdd(true);
+    } catch (err) {
+      // Handle error (validation or API)
+      console.error('handleUpdate error:', err);
+      // If validation error, show which fields
+      if (err && err.errorFields) {
+        const fields = err.errorFields.map(f => `${f.name.join('.')}: ${f.errors.join(', ')}`).join('; ');
+        message.error(`Validation failed: ${fields}`);
+      } else {
+        message.error('Failed to add/update class. See console for details.');
+      }
+    }
   };
 
   const columns = [
@@ -108,10 +136,15 @@ const ClassSchedule = () => {
         onCancel={() => { setModalOpen(false); setIsAdd(false); }}
         onOk={handleUpdate}
         okText={isAdd ? "Add" : "Save"}
+        destroyOnClose
       >
         <Form form={form} layout="vertical">
-          <Form.Item label="Course Code" name="course" rules={[{ required: true }]}> <Input /> </Form.Item>
-          <Form.Item label="Course Name" name="name" rules={[{ required: true }]}> <Input /> </Form.Item>
+          <Form.Item label="Course Code" name="course" rules={[{ required: true }]}> 
+            <Input onChange={(e) => { form.setFieldsValue({ course: e.target.value }); }} /> 
+          </Form.Item>
+          <Form.Item label="Course Name" name="name" rules={[{ required: true }]}> 
+            <Input onChange={(e) => { form.setFieldsValue({ name: e.target.value }); }} /> 
+          </Form.Item>
           <Form.Item label="Days" name="days" rules={[{ required: true }]}> 
             <Select mode="multiple" options={daysOptions.map(d => ({ value: d }))} />
           </Form.Item>
@@ -122,6 +155,7 @@ const ClassSchedule = () => {
             <RangePicker />
           </Form.Item>
         </Form>
+        {/* debug panel removed */}
       </Modal>
     </Card>
   );

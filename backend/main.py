@@ -1,3 +1,4 @@
+from typing import List
 import os
 from fastapi import FastAPI, HTTPException, Depends, status, Header, Request, Response, Cookie
 from fastapi.responses import JSONResponse
@@ -7,8 +8,8 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from bson.objectid import ObjectId
 
-from .db import get_users_collection
-from .models import UserIn, UserOut, UserInDB, LoginIn
+from .db import get_users_collection, get_class_schedule_collection
+from .models import UserIn, UserOut, UserInDB, LoginIn, ClassScheduleIn, ClassScheduleOut
 from .auth import hash_password, verify_password, create_access_token, decode_access_token
 
 load_dotenv()
@@ -24,7 +25,55 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 users = get_users_collection()
+class_schedule = get_class_schedule_collection()
+def get_current_user(authorization: str = Header(None), access_token: str = Cookie(None)):
+    token = None
+    if authorization:
+        scheme, _, token_part = authorization.partition(' ')
+        if scheme.lower() == 'bearer' and token_part:
+            token = token_part
+    if not token and access_token:
+        token = access_token
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Missing authorization')
+    try:
+        payload = decode_access_token(token)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token')
+    return payload
+@app.post('/class_schedule', response_model=ClassScheduleOut)
+async def add_class_schedule(data: ClassScheduleIn, payload: dict = Depends(get_current_user)):
+    # Insert new class schedule, associate with current user
+    user_id = payload.get('sub')
+    doc = data.dict()
+    doc['owner_id'] = user_id
+    # Convert date objects to ISO strings because PyMongo/BSON does not accept plain datetime.date
+    try:
+        if 'dates' in doc and isinstance(doc['dates'], list):
+            doc['dates'] = [d.isoformat() if hasattr(d, 'isoformat') else d for d in doc['dates']]
+    except Exception:
+        # fallback: leave as-is
+        pass
+    res = await class_schedule.insert_one(doc)
+    # Return stored document with id
+    return ClassScheduleOut(id=str(res.inserted_id), **doc)
+
+
+@app.get('/class_schedule', response_model=List[ClassScheduleOut])
+async def get_class_schedules(payload: dict = Depends(get_current_user)):
+    # Return only schedules owned by current user
+    user_id = payload.get('sub')
+    docs = await class_schedule.find({'owner_id': user_id}).to_list(length=100)
+    # Convert MongoDB _id to id string
+    return [ClassScheduleOut(id=str(doc['_id']),
+                             owner_id=doc.get('owner_id'),
+                             course=doc['course'],
+                             name=doc['name'],
+                             days=doc['days'],
+                             time=doc['time'],
+                             dates=doc['dates']) for doc in docs]
 
 class TokenResp(BaseModel):
     access_token: str

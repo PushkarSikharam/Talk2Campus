@@ -17,3 +17,7 @@ db = client.get_default_database()
 
 def get_users_collection():
     return db['users']
+
+# Get or create class_schedule collection
+def get_class_schedule_collection():
+    return db['class_schedule']
