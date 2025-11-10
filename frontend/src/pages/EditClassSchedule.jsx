@@ -52,26 +52,33 @@ const ClassSchedule = () => {
       message.error('No class selected to delete');
       return;
     }
-    // Simple confirmation; you can replace with Antd Popconfirm if desired
-    if (!window.confirm('Delete this class? This action cannot be undone.')) return;
-    try {
-      await axios.delete(`http://localhost:8000/class_schedule/${editing.id}`, { withCredentials: true });
-      // Refetch schedules from backend
-      const res = await axios.get('http://localhost:8000/class_schedule', { withCredentials: true });
-      const data = res.data.map((item, idx) => ({
-        ...item,
-        key: item.id || idx.toString(),
-        dates: item.dates.map(d => dayjs(d)),
-      }));
-      setSchedule(data);
-      setModalOpen(false);
-      setEditing(null);
-      setIsAdd(false);
-      message.success('Class deleted');
-    } catch (err) {
-      console.error('Failed to delete class', err);
-      message.error('Failed to delete class. See console for details.');
-    }
+    Modal.confirm({
+      title: 'Delete class',
+      content: 'Are you sure you want to delete this class? This action cannot be undone.',
+      okText: 'Delete',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          await axios.delete(`http://localhost:8000/class_schedule/${editing.id}`, { withCredentials: true });
+          // Refetch schedules from backend
+          const res = await axios.get('http://localhost:8000/class_schedule', { withCredentials: true });
+          const data = res.data.map((item, idx) => ({
+            ...item,
+            key: item.id || idx.toString(),
+            dates: item.dates.map(d => dayjs(d)),
+          }));
+          setSchedule(data);
+          setModalOpen(false);
+          setEditing(null);
+          setIsAdd(false);
+          message.success('Class deleted');
+        } catch (err) {
+          console.error('Failed to delete class', err);
+          message.error('Failed to delete class. See console for details.');
+        }
+      }
+    });
   };
 
   const showAddModal = () => {
@@ -107,22 +114,33 @@ const ClassSchedule = () => {
           dates: item.dates.map(d => dayjs(d)),
         }));
         setSchedule(data);
+        message.success('Successfully added class schedule');
       } else {
-        const updated = schedule.map(item =>
-          item.key === editing.key
-            ? {
-                ...item,
-                ...values,
-                time: values.time.map(t => t.format('HH:mm')),
-                dates: values.dates,
-              }
-            : item
-        );
-        setSchedule(updated);
+        // Send update to backend and refetch
+        try {
+          await axios.patch(`http://localhost:8000/class_schedule/${editing.id}`, {
+            course: values.course,
+            name: values.name,
+            days: values.days,
+            time: values.time.map(t => t.format('HH:mm')),
+            dates: values.dates.map(d => d.format('YYYY-MM-DD')),
+          }, { withCredentials: true });
+          const res2 = await axios.get('http://localhost:8000/class_schedule', { withCredentials: true });
+          const data2 = res2.data.map((item, idx) => ({
+            ...item,
+            key: item.id || idx.toString(),
+            dates: item.dates.map(d => dayjs(d)),
+          }));
+          setSchedule(data2);
+          message.success('Successfully modified class schedule');
+        } catch (err) {
+          console.error('Failed to update class schedule', err);
+          message.error('Failed to update class schedule');
+        }
       }
       setModalOpen(false);
       setEditing(null);
-      setIsAdd(true);
+      setIsAdd(false);
     } catch (err) {
       // Handle error (validation or API)
       console.error('handleUpdate error:', err);
