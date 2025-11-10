@@ -47,6 +47,33 @@ const ClassSchedule = () => {
     });
   };
 
+  const handleDelete = async () => {
+    if (!editing || !editing.id) {
+      message.error('No class selected to delete');
+      return;
+    }
+    // Simple confirmation; you can replace with Antd Popconfirm if desired
+    if (!window.confirm('Delete this class? This action cannot be undone.')) return;
+    try {
+      await axios.delete(`http://localhost:8000/class_schedule/${editing.id}`, { withCredentials: true });
+      // Refetch schedules from backend
+      const res = await axios.get('http://localhost:8000/class_schedule', { withCredentials: true });
+      const data = res.data.map((item, idx) => ({
+        ...item,
+        key: item.id || idx.toString(),
+        dates: item.dates.map(d => dayjs(d)),
+      }));
+      setSchedule(data);
+      setModalOpen(false);
+      setEditing(null);
+      setIsAdd(false);
+      message.success('Class deleted');
+    } catch (err) {
+      console.error('Failed to delete class', err);
+      message.error('Failed to delete class. See console for details.');
+    }
+  };
+
   const showAddModal = () => {
     setEditing(null);
     setIsAdd(true);
@@ -134,9 +161,12 @@ const ClassSchedule = () => {
         title={isAdd ? "Add Class" : "Edit Class"}
         open={modalOpen}
         onCancel={() => { setModalOpen(false); setIsAdd(false); }}
-        onOk={handleUpdate}
-        okText={isAdd ? "Add" : "Save"}
         destroyOnClose
+        footer={[
+          <Button key="cancel" onClick={() => { setModalOpen(false); setIsAdd(false); }}>Cancel</Button>,
+          !isAdd ? <Button key="delete" danger onClick={handleDelete}>Delete</Button> : null,
+          <Button key="save" type="primary" onClick={handleUpdate}>{isAdd ? "Add" : "Save"}</Button>
+        ]}
       >
         <Form form={form} layout="vertical">
           <Form.Item label="Course Code" name="course" rules={[{ required: true }]}> 

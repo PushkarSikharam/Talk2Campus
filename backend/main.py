@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import os
 from fastapi import FastAPI, HTTPException, Depends, status, Header, Request, Response, Cookie
 from fastapi.responses import JSONResponse
@@ -75,9 +75,32 @@ async def get_class_schedules(payload: dict = Depends(get_current_user)):
                              time=doc['time'],
                              dates=doc['dates']) for doc in docs]
 
+
+@app.delete('/class_schedule/{id}')
+async def delete_class_schedule(id: str, payload: dict = Depends(get_current_user)):
+    """Delete a class schedule owned by the current user."""
+    user_id = payload.get('sub')
+    try:
+        res = await class_schedule.delete_one({'_id': ObjectId(id), 'owner_id': user_id})
+    except Exception:
+        # invalid id format or other error
+        raise HTTPException(status_code=400, detail='Invalid id')
+    if res.deleted_count == 0:
+        # Not found or not owned by user
+        raise HTTPException(status_code=404, detail='Not found or not owner')
+    return JSONResponse(status_code=200, content={"detail": "deleted"})
+
 class TokenResp(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class UpdateProfile(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    currentPassword: Optional[str] = None
+    newPassword: Optional[str] = None
 
 @app.post('/signup', response_model=UserOut)
 async def signup(user: UserIn):
@@ -164,4 +187,47 @@ async def me(payload: dict = Depends(get_current_user)):
     user = await users.find_one({'_id': ObjectId(user_id)})
     if not user:
         raise HTTPException(status_code=404, detail='User not found')
-    return {"id": str(user.get('_id')), "name": user.get('name'), "email": user.get('email')}
+    return {"id": str(user.get('_id')), "name": user.get('name'), "email": user.get('email'), "phone": user.get('phone')}
+
+
+@app.patch('/me')
+async def update_me(data: UpdateProfile, payload: dict = Depends(get_current_user)):
+    """Update current user's profile. Password change is optional; if provided,
+    currentPassword must match the existing password and newPassword will replace it.
+    """
+    user_id = payload.get('sub')
+    user = await users.find_one({'_id': ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail='User not found')
+
+    updates = {}
+    if data.name is not None:
+        updates['name'] = data.name
+    if data.email is not None:
+        updates['email'] = data.email
+    if data.phone is not None:
+        updates['phone'] = data.phone
+
+    # Handle password change if requested
+    if data.newPassword is not None or data.currentPassword is not None:
+        # both must be present
+        if not data.currentPassword or not data.newPassword:
+            raise HTTPException(status_code=400, detail='Both currentPassword and newPassword are required to change password')
+        try:
+            ok = verify_password(data.currentPassword, user.get('hashed_password'))
+        except Exception:
+            raise HTTPException(status_code=500, detail='Error verifying password')
+        if not ok:
+            raise HTTPException(status_code=401, detail='Current password incorrect')
+        # set new hashed password
+        try:
+            updates['hashed_password'] = hash_password(data.newPassword)
+        except Exception:
+            raise HTTPException(status_code=500, detail='Failed to hash new password')
+
+    if updates:
+        await users.update_one({'_id': ObjectId(user_id)}, {'$set': updates})
+
+    # Return updated public fields
+    new_user = await users.find_one({'_id': ObjectId(user_id)})
+    return {"id": str(new_user.get('_id')), "name": new_user.get('name'), "email": new_user.get('email'), "phone": new_user.get('phone')}
