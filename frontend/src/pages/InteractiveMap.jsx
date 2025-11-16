@@ -387,18 +387,6 @@ function InteractiveMap() {
                 allowClear
               />
             </div>
-            <Space>
-              {routeCoordinates && (
-                <Button 
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={handleClearRoute}
-                  style={{ borderRadius: 8 }}
-                >
-                  Clear Route
-                </Button>
-              )}
-            </Space>
           </div>
 
           {/* Events List */}
