@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import os
 from fastapi import FastAPI, HTTPException, Depends, status, Header, Request, Response, Cookie
 from fastapi.responses import JSONResponse
@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from bson.objectid import ObjectId
+import googlemaps
 
 from .db import get_users_collection, get_class_schedule_collection
 from .models import UserIn, UserOut, UserInDB, LoginIn, ClassScheduleIn, ClassScheduleOut
@@ -15,6 +16,10 @@ from .auth import hash_password, verify_password, create_access_token, decode_ac
 load_dotenv()
 
 app = FastAPI(title='Talk2Campus Backend')
+
+# Initialize Google Maps client (requires GOOGLE_MAPS_API_KEY in .env)
+GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', '')
+gmaps_client = googlemaps.Client(key=GOOGLE_MAPS_API_KEY) if GOOGLE_MAPS_API_KEY else None
 
 # Allow dev frontend origin
 app.add_middleware(
@@ -231,3 +236,64 @@ async def update_me(data: UpdateProfile, payload: dict = Depends(get_current_use
     # Return updated public fields
     new_user = await users.find_one({'_id': ObjectId(user_id)})
     return {"id": str(new_user.get('_id')), "name": new_user.get('name'), "email": new_user.get('email'), "phone": new_user.get('phone')}
+
+
+@app.get('/route')
+async def get_route(oLat: float, oLng: float, dLat: float, dLng: float, mode: str = 'driving'):
+    """
+    Get the encoded polyline for a route between two coordinates using Google Maps Directions API.
+    
+    Query Parameters:
+    - oLat: Origin latitude
+    - oLng: Origin longitude
+    - dLat: Destination latitude
+    - dLng: Destination longitude
+    - mode: Travel mode ('driving', 'walking', 'transit', 'bicycling') - defaults to 'driving'
+    
+    Returns:
+    - polyline: Encoded polyline string representing the route
+    """
+    if not gmaps_client:
+        raise HTTPException(
+            status_code=500,
+            detail='Google Maps API key not configured. Set GOOGLE_MAPS_API_KEY in .env'
+        )
+    
+    # Validate mode parameter
+    valid_modes = ['driving', 'walking', 'transit', 'bicycling']
+    if mode not in valid_modes:
+        raise HTTPException(status_code=400, detail=f'Invalid mode. Must be one of: {", ".join(valid_modes)}')
+    
+    try:
+        # Validate coordinates
+        if not (-90 <= oLat <= 90 and -180 <= oLng <= 180):
+            raise HTTPException(status_code=400, detail='Invalid origin coordinates')
+        if not (-90 <= dLat <= 90 and -180 <= dLng <= 180):
+            raise HTTPException(status_code=400, detail='Invalid destination coordinates')
+        
+        # Call Google Maps Directions API
+        origin = (oLat, oLng)
+        destination = (dLat, dLng)
+
+        directions_result = gmaps_client.directions(
+            origin=origin,
+            destination=destination,
+            mode=mode,
+            alternatives=False
+        )
+        
+        if not directions_result or len(directions_result) == 0:
+            raise HTTPException(status_code=404, detail='No route found between origin and destination')
+        
+        # Extract the polyline from the first route
+        route = directions_result[0]
+        polyline = route['overview_polyline']['points']
+        
+        return {"polyline": polyline}
+    
+    except googlemaps.exceptions.ApiError as e:
+        raise HTTPException(status_code=500, detail=f'Google Maps API error: {str(e)}')
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error computing route: {str(e)}')

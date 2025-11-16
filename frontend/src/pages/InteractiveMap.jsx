@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
-import { Layout, Card, Typography, Input, List, Space, Tag, Button, Empty } from 'antd';
-import { SearchOutlined, EnvironmentOutlined, ClockCircleOutlined, InfoCircleOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Layout, Card, Typography, Input, List, Space, Tag, Button, Empty, Modal, Form, InputNumber, message, Spin, AutoComplete, Divider } from 'antd';
+import { SearchOutlined, EnvironmentOutlined, ClockCircleOutlined, InfoCircleOutlined, ZoomInOutlined, ZoomOutOutlined, DeleteOutlined, EnvironmentFilled, EnvironmentTwoTone } from '@ant-design/icons';
 import 'antd/dist/reset.css';
 import Map from '../components/Map';
+import { getRouteCoordinates, calculateBounds } from '../services/routeService';
 
 const { Sider, Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -65,6 +66,36 @@ function InteractiveMap() {
   });
   const [searchValue, setSearchValue] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [routeCoordinates, setRouteCoordinates] = useState(null);
+  const [routeModalVisible, setRouteModalVisible] = useState(false);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [form] = Form.useForm();
+
+  // Direction search state
+  const [originLat, setOriginLat] = useState(null);
+  const [originLng, setOriginLng] = useState(null);
+  const [hasGeolocation, setHasGeolocation] = useState(false);
+  const [toSearchValue, setToSearchValue] = useState('');
+  const [toSearchOptions, setToSearchOptions] = useState([]);
+  const [fromSearchValue, setFromSearchValue] = useState('');
+  const [fromSearchOptions, setFromSearchOptions] = useState([]);
+  const [manualFromBuilding, setManualFromBuilding] = useState(null);
+  const [directionLoading, setDirectionLoading] = useState(false);
+  const [allBuildings, setAllBuildings] = useState([]);
+
+  // Load buildings and get geolocation on mount
+  useEffect(() => {
+    // Load buildings from JSON file
+    const loadBuildings = async () => {
+      const { getBuildingsList } = await import('../services/buildingService');
+      const buildings = await getBuildingsList();
+      setAllBuildings(buildings);
+    };
+    
+    loadBuildings();
+    // Disable automatic geolocation for now — require manual From selection
+    setHasGeolocation(false);
+  }, []);
 
   const handleMouseDown = (e) => {
     const startX = e.clientX;
@@ -87,6 +118,134 @@ function InteractiveMap() {
     event.title.toLowerCase().includes(searchValue.toLowerCase()) ||
     event.location.toLowerCase().includes(searchValue.toLowerCase())
   );
+
+  // Handle "To" search for destination building
+  const handleToSearch = (value) => {
+    setToSearchValue(value);
+    if (allBuildings.length === 0) {
+      setToSearchOptions([]);
+      return;
+    }
+    if (!value || value.trim() === '') {
+      setToSearchOptions([]);
+      return;
+    }
+    const q = value.toLowerCase();
+    const results = allBuildings.filter(b => b.name.toLowerCase().includes(q)).slice(0, 10);
+    const options = results.map(b => ({ value: b.name, label: b.name }));
+    setToSearchOptions(options);
+  };
+
+  // Handle "From" search for origin building (if geolocation disabled)
+  const handleFromSearch = (value) => {
+    if (hasGeolocation) return; // Don't allow search if geolocation is enabled
+    setFromSearchValue(value);
+    if (allBuildings.length === 0) {
+      setFromSearchOptions([]);
+      return;
+    }
+    if (!value || value.trim() === '') {
+      setFromSearchOptions([]);
+      return;
+    }
+    const q = value.toLowerCase();
+    const results = allBuildings.filter(b => b.name.toLowerCase().includes(q)).slice(0, 10);
+    const options = results.map(b => ({ value: b.name, label: b.name }));
+    setFromSearchOptions(options);
+  };
+
+  // Handle selecting a destination building
+  const handleSelectDestination = async (buildingName) => {
+    setToSearchValue(buildingName);
+    setToSearchOptions([]);
+
+    // Try exact match first, then case-insensitive, then substring
+    let dest = allBuildings.find(b => b.name === buildingName);
+    if (!dest) dest = allBuildings.find(b => b.name.toLowerCase() === buildingName.toLowerCase());
+    if (!dest) dest = allBuildings.find(b => b.name.toLowerCase().includes(buildingName.toLowerCase()));
+    if (!dest) {
+      message.error('Selected destination not found');
+      return;
+    }
+
+    // Determine origin
+    let fromLat = originLat;
+    let fromLng = originLng;
+
+    if (!hasGeolocation) {
+      if (!manualFromBuilding) {
+        message.error('Please select your location (From)');
+        return;
+      }
+      fromLat = manualFromBuilding.lat;
+      fromLng = manualFromBuilding.lng;
+    }
+
+    if (!fromLat || !fromLng) {
+      message.error('Could not determine origin location');
+      return;
+    }
+
+    // Ensure numeric coords
+    const oLat = Number(fromLat);
+    const oLng = Number(fromLng);
+    const dLat = Number(dest.lat);
+    const dLng = Number(dest.lng);
+
+    if (!isFinite(oLat) || !isFinite(oLng) || !isFinite(dLat) || !isFinite(dLng)) {
+      message.error('Invalid coordinates for origin or destination');
+      return;
+    }
+
+    // Fetch walking route
+    setDirectionLoading(true);
+    try {
+      const coordinates = await getRouteCoordinates(oLat, oLng, dLat, dLng, 'walking');
+      setRouteCoordinates(coordinates);
+      message.success(`Route to ${dest.name} calculated!`);
+    } catch (error) {
+      console.error('Route fetch error:', error);
+      // Fallback: draw straight-line polyline if backend fails
+      setRouteCoordinates([[oLat, oLng], [dLat, dLng]]);
+      const serverMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
+      message.warning(`Could not fetch directions (${serverMsg}). Showing straight-line path instead.`);
+    } finally {
+      setDirectionLoading(false);
+    }
+  };
+
+  // Handle selecting a from building (manual origin)
+  const handleSelectFrom = (buildingName) => {
+    setFromSearchValue(buildingName);
+    // Try exact match first, then case-insensitive, then substring
+    let b = allBuildings.find(x => x.name === buildingName);
+    if (!b) b = allBuildings.find(x => x.name.toLowerCase() === buildingName.toLowerCase());
+    if (!b) b = allBuildings.find(x => x.name.toLowerCase().includes(buildingName.toLowerCase()));
+    setManualFromBuilding(b || null);
+    setFromSearchOptions([]);
+  };
+
+  const handleCalculateRoute = async (values) => {
+    setRouteLoading(true);
+    try {
+      const { originLat, originLng, destLat, destLng } = values;
+      const coordinates = await getRouteCoordinates(originLat, originLng, destLat, destLng);
+      
+      setRouteCoordinates(coordinates);
+      setRouteModalVisible(false);
+      message.success('Route calculated successfully!');
+      form.resetFields();
+    } catch (error) {
+      message.error(`Failed to calculate route: ${error.message}`);
+    } finally {
+      setRouteLoading(false);
+    }
+  };
+
+  const handleClearRoute = () => {
+    setRouteCoordinates(null);
+    message.info('Route cleared');
+  };
 
   return (
     <div className="page-container" style={{ padding: '24px' }}>
@@ -180,7 +339,7 @@ function InteractiveMap() {
               />
             </div>
             
-            <Map />
+            <Map routeCoordinates={routeCoordinates} onRouteChange={setRouteCoordinates} />
           </div>
           
           {/* Enhanced Splitter Handle */}
@@ -207,21 +366,39 @@ function InteractiveMap() {
         </Sider>
 
         <Content style={{ background: '#fafafa', padding: 0, display: 'flex', flexDirection: 'column' }}>
-          {/* Search Bar */}
+          {/* Search Bar and Route Controls */}
           <div style={{ 
             padding: 20,
             background: 'white',
             borderBottom: '1px solid #f0f0f0',
+            display: 'flex',
+            gap: 12,
+            justifyContent: 'space-between',
+            alignItems: 'center',
           }}>
-            <Search
-              placeholder="Search for buildings or events..."
-              size="large"
-              prefix={<SearchOutlined style={{ color: '#43cea2' }} />}
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              style={{ borderRadius: 12 }}
-              allowClear
-            />
+            <div style={{ flex: 1 }}>
+              <Search
+                placeholder="Search for buildings or events..."
+                size="large"
+                prefix={<SearchOutlined style={{ color: '#43cea2' }} />}
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                style={{ borderRadius: 12 }}
+                allowClear
+              />
+            </div>
+            <Space>
+              {routeCoordinates && (
+                <Button 
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={handleClearRoute}
+                  style={{ borderRadius: 8 }}
+                >
+                  Clear Route
+                </Button>
+              )}
+            </Space>
           </div>
 
           {/* Events List */}
@@ -231,6 +408,122 @@ function InteractiveMap() {
             padding: 20,
           }}>
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
+              {/* Directions Search Box */}
+              <Card 
+                style={{
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(67, 206, 162, 0.05) 100%)',
+                  border: '1px solid rgba(102, 126, 234, 0.2)',
+                }}
+              >
+                <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <EnvironmentTwoTone twoToneColor={['#667eea', '#43cea2']} style={{ fontSize: 18 }} />
+                    <Title level={4} style={{ marginBottom: 0 }}>Get Directions</Title>
+                  </div>
+
+                  {/* From Field */}
+                  <div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>FROM</Text>
+                      <AutoComplete
+                        placeholder="Search your building"
+                        value={fromSearchValue}
+                        options={fromSearchOptions}
+                        onSearch={handleFromSearch}
+                        onSelect={(value) => handleSelectFrom(value)}
+                        onChange={(value) => setFromSearchValue(value)}
+                        style={{ marginTop: 4, width: '100%' }}
+                        filterOption={false}
+                        allowClear
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (fromSearchOptions && fromSearchOptions.length > 0) {
+                              const first = fromSearchOptions[0].value;
+                              handleSelectFrom(first);
+                            } else {
+                              message.info('No matching building found. Try typing more characters.');
+                            }
+                          }
+                        }}
+                      />
+                  </div>
+
+                  {/* To Field */}
+                  <div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>TO</Text>
+                    <Spin spinning={directionLoading}>
+                      <AutoComplete
+                        placeholder="Search destination building"
+                        value={toSearchValue}
+                        options={toSearchOptions}
+                        onSearch={handleToSearch}
+                        onSelect={(value) => handleSelectDestination(value)}
+                        onChange={(value) => setToSearchValue(value)}
+                        style={{ marginTop: 4, width: '100%' }}
+                        filterOption={false}
+                        allowClear
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            // If there are suggestions, select the first one
+                            if (toSearchOptions && toSearchOptions.length > 0) {
+                              const first = toSearchOptions[0].value;
+                              handleSelectDestination(first);
+                            } else {
+                              message.info('No matching building found. Try typing more characters.');
+                            }
+                          }
+                        }}
+                      />
+                    </Spin>
+                  </div>
+
+                  {/* Navigate button */}
+                  <div>
+                    <Button
+                      type="primary"
+                      block
+                      onClick={async () => {
+                        // Ensure from is selected
+                        if (!manualFromBuilding) {
+                          message.error('Please select a FROM building first');
+                          return;
+                        }
+                        if (!toSearchValue || toSearchValue.trim() === '') {
+                          message.error('Please enter a destination (TO)');
+                          return;
+                        }
+                        // Try to find destination and trigger route
+                        const dest = allBuildings.find(b => b.name === toSearchValue);
+                        if (!dest) {
+                          message.error('Destination not found. Please select from suggestions');
+                          return;
+                        }
+                        await handleSelectDestination(dest.name);
+                      }}
+                      disabled={!allBuildings || allBuildings.length === 0}
+                      style={{ marginTop: 8, borderRadius: 8 }}
+                    >
+                      Navigate
+                    </Button>
+                  </div>
+
+                  {/* Clear Route Button */}
+                  {routeCoordinates && (
+                    <Button 
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={handleClearRoute}
+                      style={{ borderRadius: 8, width: '100%' }}
+                    >
+                      Clear Route
+                    </Button>
+                  )}
+                </Space>
+              </Card>
+
+              <Divider style={{ margin: '8px 0' }} />
+
+              {/* Events List */}
               <div style={{ 
                 display: 'flex', 
                 justifyContent: 'space-between', 
@@ -348,6 +641,91 @@ function InteractiveMap() {
           </div>
         </Content>
       </Layout>
+
+      
+
+      {/* Route Calculation Modal */}
+      <Modal
+        title="Calculate Route"
+        open={routeModalVisible}
+        onCancel={() => setRouteModalVisible(false)}
+        footer={null}
+        centered
+      >
+        <Spin spinning={routeLoading}>
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={handleCalculateRoute}
+          >
+            <Form.Item
+              label="Origin Latitude"
+              name="originLat"
+              rules={[
+                { required: true, message: 'Origin latitude is required' },
+                { type: 'number', min: -90, max: 90, message: 'Latitude must be between -90 and 90' }
+              ]}
+              tooltip="Enter latitude between -90 and 90"
+            >
+              <InputNumber style={{ width: '100%' }} placeholder="e.g., 27.7136" step={0.0001} />
+            </Form.Item>
+
+            <Form.Item
+              label="Origin Longitude"
+              name="originLng"
+              rules={[
+                { required: true, message: 'Origin longitude is required' },
+                { type: 'number', min: -180, max: 180, message: 'Longitude must be between -180 and 180' }
+              ]}
+              tooltip="Enter longitude between -180 and 180"
+            >
+              <InputNumber style={{ width: '100%' }} placeholder="e.g., -97.3252" step={0.0001} />
+            </Form.Item>
+
+            <Form.Item
+              label="Destination Latitude"
+              name="destLat"
+              rules={[
+                { required: true, message: 'Destination latitude is required' },
+                { type: 'number', min: -90, max: 90, message: 'Latitude must be between -90 and 90' }
+              ]}
+              tooltip="Enter latitude between -90 and 90"
+            >
+              <InputNumber style={{ width: '100%' }} placeholder="e.g., 27.7200" step={0.0001} />
+            </Form.Item>
+
+            <Form.Item
+              label="Destination Longitude"
+              name="destLng"
+              rules={[
+                { required: true, message: 'Destination longitude is required' },
+                { type: 'number', min: -180, max: 180, message: 'Longitude must be between -180 and 180' }
+              ]}
+              tooltip="Enter longitude between -180 and 180"
+            >
+              <InputNumber style={{ width: '100%' }} placeholder="e.g., -97.3100" step={0.0001} />
+            </Form.Item>
+
+            <Form.Item>
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                block 
+                loading={routeLoading}
+                style={{
+                  background: '#667eea',
+                  borderRadius: 8,
+                  border: 'none',
+                }}
+              >
+                Calculate Route
+              </Button>
+            </Form.Item>
+          </Form>
+        </Spin>
+      </Modal>
+
+      
     </div>
   );
 }
