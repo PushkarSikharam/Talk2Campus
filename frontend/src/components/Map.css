@@ -85,36 +85,60 @@
 
 /* Popup Customization */
 .leaflet-popup {
-  margin-bottom: 30px;
+  margin-bottom: 10px;
 }
 
 .leaflet-popup-content-wrapper {
-  padding: 0;
-  border-radius: 16px;
-  overflow: hidden;
+  padding: 8px 12px;
+  border-radius: 12px;
+  overflow: visible;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+  background: white;
 }
 
 .leaflet-popup-content {
   margin: 0;
-  min-width: 250px;
+  min-width: 220px;
+  font-size: 14px;
+}
+
+.leaflet-popup-tip-container {
+  width: 36px;
+  height: 14px;
+}
+
+.leaflet-popup-tip {
+  background: transparent;
 }
 
 .building-popup-content {
-  padding: 16px;
+  padding: 8px 0 6px 0;
 }
 
 .building-popup-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .building-popup-color-dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.leaflet-popup-close-button {
+  right: 8px !important;
+  top: 8px !important;
+  width: 28px !important;
+  height: 28px !important;
+  line-height: 26px !important;
+  border-radius: 14px !important;
+  background: transparent !important;
+  color: #666 !important;
+  box-shadow: none !important;
 }
 
 /* Tooltip Customization */

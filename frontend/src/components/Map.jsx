@@ -136,7 +136,7 @@ const MapControls = ({ onClearRoute, userLocation }) => {
   );
 };
 
-const BuildingsPolygons = () => {
+const BuildingsPolygons = ({ directionsProps = null }) => {
   const [features, setFeatures] = useState([]);
   const [hoveredBuilding, setHoveredBuilding] = useState(null);
 
@@ -205,81 +205,54 @@ const BuildingsPolygons = () => {
             mouseout: () => setHoveredBuilding(null),
           }}
         >
-          <Tooltip 
-            direction="top" 
-            sticky
-            className="custom-tooltip"
-          >
-            <div style={{ 
-              padding: '4px 8px',
-              borderRadius: 8,
-              background: 'white',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            }}>
-              <Text strong style={{ fontSize: 13 }}>
-                {buildingName}
-              </Text>
-            </div>
+          <Tooltip direction="top" className="custom-tooltip">
+            <Text strong style={{ fontSize: 13 }}>{buildingName}</Text>
           </Tooltip>
           
-          <Popup>
-            <Card 
-              bordered={false}
-              style={{ 
-                width: 250,
-                margin: -12,
-              }}
-              bodyStyle={{ padding: 12 }}
-            >
-              <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: buildingColor,
-                  }} />
-                  <Text strong style={{ fontSize: 15 }}>
-                    {buildingName}
-                  </Text>
-                </div>
+          <Popup offset={[0, 14]} className="building-popup">
+            <div className="building-popup-content">
+              <div className="building-popup-header">
+                <div className="building-popup-color-dot" style={{ background: buildingColor }} />
+                <Text strong style={{ fontSize: 15 }}>{buildingName}</Text>
+              </div>
 
-                {feature.properties?.description && (
-                  <Text type="secondary" style={{ fontSize: 13 }}>
-                    {feature.properties.description}
-                  </Text>
+              {feature.properties?.description && (
+                <div style={{ marginTop: 6 }}>
+                  <Text type="secondary" style={{ fontSize: 13 }}>{feature.properties.description}</Text>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                <Tag color={buildingColor} style={{ margin: 0, borderRadius: 8 }}>Building</Tag>
+                {feature.properties?.type && (
+                  <Tag style={{ margin: 0, borderRadius: 8 }}>{feature.properties.type}</Tag>
                 )}
+              </div>
 
-                <div style={{ 
-                  display: 'flex', 
-                  gap: 8,
-                  flexWrap: 'wrap',
-                }}>
-                  <Tag color={buildingColor} style={{ margin: 0, borderRadius: 8 }}>
-                    Building
-                  </Tag>
-                  {feature.properties?.type && (
-                    <Tag style={{ margin: 0, borderRadius: 8 }}>
-                      {feature.properties.type}
-                    </Tag>
-                  )}
-                </div>
-
-                <Button 
-                  type="primary" 
+              <div style={{ marginTop: 10 }}>
+                <Button
+                  type="primary"
                   size="small"
                   icon={<EnvironmentOutlined />}
-                  style={{
-                    width: '100%',
-                    borderRadius: 8,
-                    background: buildingColor,
-                    border: 'none',
+                  style={{ width: '100%', borderRadius: 8, background: buildingColor, border: 'none' }}
+                  onClick={() => {
+                    // If the parent provided directions handlers, call them to set the destination and compute route
+                    try {
+                      if (directionsProps && typeof directionsProps.handleSelectDestination === 'function') {
+                        directionsProps.handleSelectDestination(buildingName);
+                      } else {
+                        // Fallback: dispatch a window event that InteractiveMap can listen to
+                        window.dispatchEvent(new CustomEvent('map-get-directions', { detail: { name: buildingName, feature } }));
+                      }
+                    } catch (e) {
+                      // ignore
+                    }
                   }}
                 >
                   Get Directions
                 </Button>
-              </Space>
-            </Card>
+              </div>
+            </div>
           </Popup>
         </Polygon>
       );
@@ -491,7 +464,7 @@ const Map = ({ routeCoordinates, onRouteChange, directionsProps = null }) => {
         )}
         
         <RouteAutoZoom routeCoordinates={routeCoordinates} />
-        <BuildingsPolygons />
+        <BuildingsPolygons directionsProps={directionsProps} />
         <MapControls onClearRoute={() => handleRouteUpdate(null)} userLocation={userLocation} />
       </MapContainer>
 
