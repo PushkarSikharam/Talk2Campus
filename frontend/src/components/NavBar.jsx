@@ -25,6 +25,7 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
   const userMenuItems = [
     { key: 'profile', label: <Link to="/edit-profile" onClick={closeDrawer}>Edit Profile</Link> },
     { key: 'schedule', label: <Link to="/edit-class-schedule" onClick={closeDrawer}>Edit Class Schedule</Link> },
+    { key: 'registered', label: <Link to="/registered-events" onClick={closeDrawer}>Registered Events</Link> },
     { key: 'logout', label: 'Logout', onClick: () => { handleLogout(); closeDrawer(); navigate('/interactive-map'); } },
   ];
 

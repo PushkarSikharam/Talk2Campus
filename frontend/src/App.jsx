@@ -11,6 +11,7 @@ import Login from './pages/Login';
 import EditProfile from './pages/EditProfile';
 import EditClassSchedule from './pages/EditClassSchedule';
 import SignUp from './pages/SignUp';
+import RegisteredEvents from './pages/RegisteredEvents';
 // We need to import Layout a specific way for this structure
 import { Layout } from 'antd';
 
@@ -23,7 +24,13 @@ const App = () => {
     setIsLoggedIn(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('http://localhost:8000/logout', { method: 'POST', credentials: 'include' });
+    } catch (e) {
+      // ignore network errors but proceed to clear client state
+      console.error('Logout request failed', e);
+    }
     setIsLoggedIn(false);
   };
 
@@ -43,6 +50,7 @@ const App = () => {
               <Route path="/login" element={<Login handleLogin={handleLogin} />} />
               <Route path="/edit-profile" element={<EditProfile />} />
               <Route path="/edit-class-schedule" element={<EditClassSchedule />} />
+              <Route path="/registered-events" element={<RegisteredEvents />} />
               <Route path="/signup" element={<SignUp />} />
               <Route path="/" element={<Home />} />
             </Routes>

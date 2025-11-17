@@ -1,22 +1,21 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Layout, Card, Typography, Input, List, Space, Tag, Button, Empty, Modal, Form, InputNumber, message, Spin, AutoComplete, Divider } from 'antd';
-import { SearchOutlined, EnvironmentOutlined, ClockCircleOutlined, InfoCircleOutlined, ZoomInOutlined, ZoomOutOutlined, DeleteOutlined, EnvironmentFilled, EnvironmentTwoTone } from '@ant-design/icons';
+import { Layout, Card, Typography, Input, List, Space, Tag, Button, Empty, Modal, Form, InputNumber, message, Spin, AutoComplete, Divider, Popconfirm } from 'antd';
+import { EnvironmentOutlined, ClockCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import 'antd/dist/reset.css';
 import Map from '../components/Map';
+import axios from 'axios';
+const API_BASE = 'http://localhost:8000';
+// Ensure cookies are sent for auth-protected endpoints (login cookie)
+axios.defaults.withCredentials = true;
+// make axios use the same backend origin for all relative calls
+axios.defaults.baseURL = API_BASE;
 import { getRouteCoordinates, calculateBounds } from '../services/routeService';
 
 const { Sider, Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
-const { Search } = Input;
 
-// Mock events data
-const mockEvents = [
-  { id: 1, title: 'Tech Career Fair', location: 'Engineering Building', time: '2:00 PM - 5:00 PM', date: 'Today', type: 'career', attendees: 150 },
-  { id: 2, title: 'Campus Tour', location: 'Student Center', time: '10:00 AM - 11:30 AM', date: 'Tomorrow', type: 'tour', attendees: 45 },
-  { id: 3, title: 'Biology Seminar', location: 'Science Hall', time: '3:00 PM - 4:30 PM', date: 'Today', type: 'academic', attendees: 80 },
-  { id: 4, title: 'Student Club Meeting', location: 'Library Conference Room', time: '6:00 PM - 7:00 PM', date: 'Tomorrow', type: 'social', attendees: 30 },
-];
+// (placeholder removed) We'll fetch events from backend
 
 const eventTypeColors = {
   career: '#667eea',
@@ -33,8 +32,10 @@ function InteractiveMap() {
     }
     return 600;
   });
-  const [searchValue, setSearchValue] = useState('');
+  
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [eventModalVisible, setEventModalVisible] = useState(false);
+  const [sanitizedDescription, setSanitizedDescription] = useState('');
   const [routeCoordinates, setRouteCoordinates] = useState(null);
   const [routeModalVisible, setRouteModalVisible] = useState(false);
   const [routeLoading, setRouteLoading] = useState(false);
@@ -51,6 +52,13 @@ function InteractiveMap() {
   const [manualFromBuilding, setManualFromBuilding] = useState(null);
   const [directionLoading, setDirectionLoading] = useState(false);
   const [allBuildings, setAllBuildings] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registrationId, setRegistrationId] = useState(null);
+  // null = unknown/pending, true = authenticated, false = not authenticated
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
+  const [unregistering, setUnregistering] = useState(false);
 
   const locationAnnouncedRef = useRef(false);
 
@@ -104,6 +112,244 @@ function InteractiveMap() {
     };
   }, []);
 
+  // Fetch upcoming events from backend (ends after now)
+  useEffect(() => {
+    let mounted = true;
+    const loadEvents = async () => {
+      try {
+        // Fetch today's events (include all events that occur any time during today)
+        const res = await axios.get('/events?when=today&limit=50');
+        if (!mounted) return;
+        setEvents(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        console.error('Failed to load events from backend:', err);
+        // leave events as empty array (UI will show empty state)
+      }
+    };
+    loadEvents();
+    return () => { mounted = false; };
+  }, []);
+
+  // Helpers to normalize event fields with safe fallbacks
+  const getEventTitle = (ev) => ev.title || ev.name || ev.displayName || 'Event';
+  const getEventLocation = (ev) => ev.location || ev.locationName || ev.venue || ev.place || '';
+  const getEventType = (ev) => ev.type || (ev.categories && ev.categories[0]) || 'other';
+  const getEventAttendees = (ev) => ev.attendees || ev.attendance || ev.rsvpCount || ev.attendanceCount || 0;
+  const getEventDateText = (ev) => {
+    const start = ev.startsOn_dt || ev.startsOn || ev.startDate || ev.start;
+    if (!start) return '';
+    try {
+      const d = new Date(start);
+      return d.toLocaleString();
+    } catch (e) {
+      return String(start);
+    }
+  };
+  const getEventEndDateText = (ev) => {
+    const end = ev.endsOn_dt || ev.endsOn || ev.endDate || ev.end;
+    if (!end) return '';
+    try {
+      const d = new Date(end);
+      return d.toLocaleString();
+    } catch (e) {
+      return String(end);
+    }
+  };
+
+  const getEventDescription = (ev) => ev.description || ev.body || ev.details || ev.summary || '';
+  const getEventOrganizations = (ev) => {
+    // Support multiple possible shapes: organizations, organizationNames, hosts, sponsors, org, organization
+    if (!ev) return [];
+    if (ev.organizationNames && Array.isArray(ev.organizationNames)) return ev.organizationNames;
+    if (ev.organizationNames && typeof ev.organizationNames === 'string') return [ev.organizationNames];
+    if (ev.organizations && Array.isArray(ev.organizations)) return ev.organizations;
+    if (ev.organization) return Array.isArray(ev.organization) ? ev.organization : [ev.organization];
+    if (ev.hosts) return Array.isArray(ev.hosts) ? ev.hosts : [ev.hosts];
+    if (ev.sponsors) return Array.isArray(ev.sponsors) ? ev.sponsors : [ev.sponsors];
+    if (ev.org) return Array.isArray(ev.org) ? ev.org : [ev.org];
+    return [];
+  };
+  const getEventRegistrationUrl = (ev) => ev.registrationUrl || ev.registerUrl || ev.registration || ev.signupUrl || ev.url || ev.link || null;
+
+  const getOrgDisplayName = (o) => {
+    if (!o) return '';
+    if (typeof o === 'string') return o;
+    if (o.name) return o.name;
+    if (o.organizationName) return o.organizationName;
+    if (o.displayName) return o.displayName;
+    if (o.orgName) return o.orgName;
+    if (o.title) return o.title;
+    // Last resort: stringify
+    try {
+      return JSON.stringify(o);
+    } catch (e) {
+      return String(o);
+    }
+  };
+
+  // Sanitize HTML descriptions. Prefer `dompurify` if available, otherwise use a conservative fallback.
+  useEffect(() => {
+    let mounted = true;
+    const sanitizeFallback = (html) => {
+      if (!html) return '';
+      // Remove script/style tags
+      let s = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
+      s = s.replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '');
+      // Remove on* attributes (onclick, onerror, etc.)
+      s = s.replace(/\son\w+\s*=\s*(['"]).*?\1/gi, '');
+      // Neutralize javascript: URLs
+      s = s.replace(/href\s*=\s*(['"])javascript:[^\1]*\1/gi, '');
+      return s;
+    };
+
+    const doSanitize = async () => {
+      if (!selectedEvent) {
+        if (mounted) setSanitizedDescription('');
+        return;
+      }
+      const raw = getEventDescription(selectedEvent) || '';
+      try {
+        // try to dynamically import DOMPurify (dev may not have it installed)
+        const mod = await import('dompurify');
+        const DOMPurify = mod.default || mod;
+        const clean = DOMPurify.sanitize(raw, { ALLOWED_TAGS: false });
+        if (mounted) setSanitizedDescription(clean || '');
+      } catch (err) {
+        // fallback sanitizer
+        if (mounted) setSanitizedDescription(sanitizeFallback(raw));
+      }
+    };
+
+    // Only sanitize when modal is visible or selected changes
+    if (eventModalVisible) doSanitize();
+    return () => { mounted = false; };
+  }, [selectedEvent, eventModalVisible]);
+
+  const handleUnregisterFromModal = async () => {
+    setUnregistering(true);
+    try {
+      const doDelete = async (id) => {
+        const resp = await fetch(`${API_BASE}/registrations/${id}`, { method: 'DELETE', credentials: 'include' });
+        if (resp.status === 401) {
+          setIsAuthenticated(false);
+          const txt = await resp.text().catch(() => 'Unauthorized');
+          throw new Error(txt || 'Unauthorized');
+        }
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => resp.statusText || 'Delete failed');
+          throw new Error(`${resp.status} ${resp.statusText} - ${txt}`);
+        }
+        return true;
+      };
+
+      if (!registrationId) {
+        // try best-effort: fetch registrations and find id
+        try {
+          const regsRes = await axios.get('/registrations');
+          const list = Array.isArray(regsRes.data) ? regsRes.data : [];
+          const match = list.find(r => {
+            const ev = r.event || {};
+            if (ev.id && selectedEvent.id && String(ev.id) === String(selectedEvent.id)) return true;
+            if (ev._id && selectedEvent.id && String(ev._id) === String(selectedEvent.id)) return true;
+            if ((ev.title || ev.name) && (selectedEvent.title || selectedEvent.name) && String(ev.title || ev.name) === String(selectedEvent.title || selectedEvent.name)) return true;
+            return false;
+          });
+          if (match) {
+            const idToDelete = match.registration_id || match.registrationId || match.id;
+            if (!idToDelete) throw new Error('Registration id not found');
+            await doDelete(idToDelete);
+            setIsRegistered(false);
+            setRegistrationId(null);
+            setEventModalVisible(false);
+            message.success('Unregistered from event');
+            return;
+          }
+        } catch (err) {
+          console.error('Unregister failed', err);
+          message.error(err?.message || 'Failed to unregister');
+          return;
+        }
+        message.error('Registration not found');
+        return;
+      }
+
+      // have registrationId
+      try {
+        await doDelete(registrationId);
+        setIsRegistered(false);
+        setRegistrationId(null);
+        setEventModalVisible(false);
+        message.success('Unregistered from event');
+      } catch (err) {
+        console.error('Unregister error', err);
+        message.error(err?.message || 'Failed to unregister');
+      }
+    } finally {
+      setUnregistering(false);
+    }
+  };
+
+  // When the event modal opens, check whether the current user is registered for the event.
+  useEffect(() => {
+    let mounted = true;
+    const checkRegistered = async () => {
+      if (!eventModalVisible || !selectedEvent || !selectedEvent.id) {
+        if (mounted) setIsRegistered(false);
+        return;
+      }
+        // First verify authentication by calling /me. If unauthenticated, do not show register/unregister.
+        setIsAuthenticated(null); // pending
+        try {
+          const meRes = await axios.get('/me');
+          console.debug('InteractiveMap: GET /me ->', meRes?.status, meRes?.data);
+          if (meRes && meRes.status === 200) {
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
+            setIsRegistered(false);
+            setRegistrationId(null);
+            return;
+          }
+        } catch (authErr) {
+          console.debug('InteractiveMap: GET /me failed ->', authErr?.response?.status, authErr?.response?.data);
+          setIsAuthenticated(false);
+          setIsRegistered(false);
+          setRegistrationId(null);
+          return;
+        }
+
+        try {
+          const res = await axios.get(`/events/${selectedEvent.id}/is_registered`);
+          console.debug(`InteractiveMap: GET /events/${selectedEvent.id}/is_registered ->`, res?.status, res?.data);
+          if (!mounted) return;
+          const registered = Boolean(res.data && res.data.registered);
+          setIsRegistered(registered);
+          setRegistrationId(null);
+          // If registered, attempt to fetch registration id by listing registrations
+          if (registered) {
+            try {
+              const regs = await axios.get(`${API_BASE}/registrations`);
+              const list = Array.isArray(regs.data) ? regs.data : [];
+              const match = list.find(r => {
+                const ev = r.event || {};
+                if (ev.id && selectedEvent.id && String(ev.id) === String(selectedEvent.id)) return true;
+                if (ev._id && selectedEvent.id && String(ev._id) === String(selectedEvent.id)) return true;
+                if ((ev.title || ev.name) && (selectedEvent.title || selectedEvent.name) && String(ev.title || ev.name) === String(selectedEvent.title || selectedEvent.name)) return true;
+                return false;
+              });
+              if (match) setRegistrationId(match.registration_id || match.registrationId || match.id || null);
+            } catch (err) {
+              // ignore; registration id optional
+            }
+          }
+        } catch (err) {
+          if (mounted) setIsRegistered(false);
+        }
+    };
+    checkRegistered();
+    return () => { mounted = false; };
+  }, [selectedEvent, eventModalVisible]);
+
   const handleMouseDown = (e) => {
     const startX = e.clientX;
     const startWidth = siderWidth;
@@ -121,10 +367,7 @@ function InteractiveMap() {
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  const filteredEvents = mockEvents.filter(event =>
-    event.title.toLowerCase().includes(searchValue.toLowerCase()) ||
-    event.location.toLowerCase().includes(searchValue.toLowerCase())
-  );
+  const filteredEvents = events;
 
   // Handle "To" search for destination building
   const handleToSearch = (value) => {
@@ -361,28 +604,7 @@ function InteractiveMap() {
         </Sider>
 
         <Content style={{ background: '#fafafa', padding: 0, display: 'flex', flexDirection: 'column' }}>
-          {/* Search Bar and Route Controls */}
-          <div style={{ 
-            padding: 20,
-            background: 'white',
-            borderBottom: '1px solid #f0f0f0',
-            display: 'flex',
-            gap: 12,
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
-            <div style={{ flex: 1 }}>
-              <Search
-                placeholder="Search for buildings or events..."
-                size="large"
-                prefix={<SearchOutlined style={{ color: '#43cea2' }} />}
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-                style={{ borderRadius: 12 }}
-                allowClear
-              />
-            </div>
-          </div>
+          {/* (Search bar removed from events panel) */}
 
           {/* Events List */}
           <div style={{ 
@@ -402,7 +624,7 @@ function InteractiveMap() {
                 alignItems: 'center',
               }}>
                 <Title level={4} style={{ marginBottom: 0 }}>
-                  📅 Upcoming Events
+                  📅 Today's Events
                 </Title>
                 <Tag color="blue">{filteredEvents.length} events</Tag>
               </div>
@@ -410,70 +632,85 @@ function InteractiveMap() {
               {filteredEvents.length > 0 ? (
                 <List
                   dataSource={filteredEvents}
-                  renderItem={(event) => (
-                    <Card
-                      hoverable
-                      onClick={() => setSelectedEvent(event)}
-                      style={{
-                        marginBottom: 12,
-                        borderRadius: 12,
-                        border: selectedEvent?.id === event.id 
-                          ? `2px solid ${eventTypeColors[event.type]}` 
-                          : '1px solid #f0f0f0',
-                        transition: 'all 0.3s ease',
-                        background: selectedEvent?.id === event.id 
-                          ? `${eventTypeColors[event.type]}05`
-                          : 'white',
-                      }}
-                    >
-                      <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Text strong style={{ fontSize: 16 }}>{event.title}</Text>
-                          <Tag 
-                            color={eventTypeColors[event.type]}
-                            style={{ borderRadius: 12 }}
-                          >
-                            {event.type}
-                          </Tag>
-                        </div>
-                        
-                        <Space>
-                          <EnvironmentOutlined style={{ color: '#43cea2' }} />
-                          <Text type="secondary">{event.location}</Text>
-                        </Space>
-                        
-                        <Space>
-                          <ClockCircleOutlined style={{ color: '#667eea' }} />
-                          <Text type="secondary">{event.date} • {event.time}</Text>
-                        </Space>
-
-                        <div style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginTop: 8,
-                          paddingTop: 8,
-                          borderTop: '1px solid #f0f0f0',
-                        }}>
-                          <Space size={4}>
-                            <Text type="secondary" style={{ fontSize: 13 }}>
-                              👥 {event.attendees} attending
-                            </Text>
+                  renderItem={(event) => {
+                    const title = getEventTitle(event);
+                    const location = getEventLocation(event);
+                    const type = getEventType(event);
+                    const attendees = getEventAttendees(event);
+                    const dateText = getEventDateText(event);
+                    const endText = getEventEndDateText(event);
+                    const color = eventTypeColors[type] || '#43cea2';
+                    return (
+                      <Card
+                        hoverable
+                        onClick={() => setSelectedEvent(event)}
+                        style={{
+                          marginBottom: 12,
+                          borderRadius: 12,
+                          border: selectedEvent?.id === event.id 
+                            ? `2px solid ${color}` 
+                            : '1px solid #f0f0f0',
+                          transition: 'all 0.3s ease',
+                          background: selectedEvent?.id === event.id 
+                            ? `${color}05`
+                            : 'white',
+                        }}
+                      >
+                        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text strong style={{ fontSize: 16 }}>{title}</Text>
+                            <Tag 
+                              color={color}
+                              style={{ borderRadius: 12 }}
+                            >
+                              {type}
+                            </Tag>
+                          </div>
+                          
+                          <Space>
+                            <EnvironmentOutlined style={{ color: '#43cea2' }} />
+                            <Text type="secondary">{location}</Text>
                           </Space>
-                          <Button 
-                            type="link" 
-                            size="small"
-                            style={{ 
-                              color: eventTypeColors[event.type],
-                              padding: 0,
-                            }}
-                          >
-                            View Details →
-                          </Button>
-                        </div>
-                      </Space>
-                    </Card>
-                  )}
+                          
+                          <Space>
+                            <ClockCircleOutlined style={{ color: '#667eea' }} />
+                            <Text type="secondary">{dateText}</Text>
+                          </Space>
+
+                          {endText ? (
+                            <Space>
+                              <ClockCircleOutlined style={{ color: '#667eea' }} />
+                              <Text type="secondary">Ends: {endText}</Text>
+                            </Space>
+                          ) : null}
+
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginTop: 8,
+                            paddingTop: 8,
+                            borderTop: '1px solid #f0f0f0',
+                          }}>
+                            <Space size={4}>
+                              {/* Attendee count removed per request */}
+                            </Space>
+                              <Button 
+                                type="link" 
+                                size="small"
+                                onClick={() => { setSelectedEvent(event); setEventModalVisible(true); }}
+                                style={{ 
+                                  color: color,
+                                  padding: 0,
+                                }}
+                              >
+                                View Details →
+                              </Button>
+                          </div>
+                        </Space>
+                      </Card>
+                    );
+                  }}
                 />
               ) : (
                 <Card style={{ borderRadius: 12, textAlign: 'center', padding: 40 }}>
@@ -595,6 +832,114 @@ function InteractiveMap() {
             </Form.Item>
           </Form>
         </Spin>
+      </Modal>
+
+      {/* Event Details Modal */}
+      <Modal
+        title={selectedEvent ? getEventTitle(selectedEvent) : 'Event Details'}
+        open={eventModalVisible}
+        onCancel={() => setEventModalVisible(false)}
+        footer={null}
+        centered
+      >
+        {selectedEvent ? (
+          <div>
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <div style={{ marginTop: 6 }}>
+                      <Tag color={eventTypeColors[getEventType(selectedEvent)] || 'blue'}>{getEventType(selectedEvent)}</Tag>
+                      <Text type="secondary" style={{ marginLeft: 8 }}>{getEventLocation(selectedEvent)}</Text>
+                    </div>
+                  </div>
+              </div>
+
+              <div>
+                <div>
+                  <Text strong>Starts: </Text>
+                  <Text type="secondary">{getEventDateText(selectedEvent) || '—'}</Text>
+                </div>
+                {getEventEndDateText(selectedEvent) ? (
+                  <div style={{ marginTop: 6 }}>
+                    <Text strong>Ends: </Text>
+                    <Text type="secondary">{getEventEndDateText(selectedEvent)}</Text>
+                  </div>
+                ) : null}
+              </div>
+
+              <div>
+                {sanitizedDescription ? (
+                  <div dangerouslySetInnerHTML={{ __html: sanitizedDescription }} />
+                ) : (
+                  <Text>No description available.</Text>
+                )}
+              </div>
+
+              {getEventOrganizations(selectedEvent).length > 0 && (
+                <div>
+                  <Text strong>Organizations:</Text>
+                  <div style={{ marginTop: 8 }}>
+                    {getEventOrganizations(selectedEvent).map((o, idx) => (
+                      <Tag key={idx} style={{ marginBottom: 6 }}>{getOrgDisplayName(o)}</Tag>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <Button onClick={() => { setEventModalVisible(false); }}>
+                  Close
+                </Button>
+                {isAuthenticated !== true ? (
+                  <Button disabled>Login to register</Button>
+                ) : !isRegistered ? (
+                  <Button
+                    type="primary"
+                    loading={registerLoading}
+                    onClick={async () => {
+                      if (!selectedEvent || !selectedEvent.id) return;
+                      setRegisterLoading(true);
+                      try {
+                        // attempt to save registration server-side (requires auth)
+                        const resp = await axios.post(`/events/${selectedEvent.id}/register`);
+                        setIsRegistered(true);
+                        const newId = resp?.data?.id || resp?.data?.registration_id || null;
+                        if (newId) setRegistrationId(newId);
+                        message.success('You are registered for this event');
+                      } catch (err) {
+                        const status = err?.response?.status;
+                        if (status === 401) {
+                          setIsAuthenticated(false);
+                          message.info('Please log in to register for events');
+                        } else {
+                          console.error('Registration error', err);
+                          message.error('Could not register for event');
+                        }
+                      } finally {
+                        setRegisterLoading(false);
+                      }
+
+                      // If there's an external registration URL, open it regardless
+                      const url = getEventRegistrationUrl(selectedEvent);
+                      if (url) window.open(url, '_blank');
+                    }}
+                  >
+                    Register
+                  </Button>
+                ) : (
+                  <Popconfirm
+                    title="Unregister from this event?"
+                    onConfirm={handleUnregisterFromModal}
+                    okText="Yes"
+                    cancelText="No"
+                  >
+                    <Button danger loading={unregistering}>Unregister</Button>
+                  </Popconfirm>
+                )}
+              </div>
+            </Space>
+          </div>
+        ) : null}
       </Modal>
 
       

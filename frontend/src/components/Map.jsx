@@ -83,15 +83,57 @@ const RouteAutoZoom = ({ routeCoordinates }) => {
   return null;
 };
 
-// Custom map controls component
-const MapControls = ({ onClearRoute }) => {
+// Custom map controls component: renders persistent location / zoom / reset buttons using the leaflet map instance
+const MapControls = ({ onClearRoute, userLocation }) => {
   const map = useMap();
 
-  const zoomIn = () => map.zoomIn();
-  const zoomOut = () => map.zoomOut();
-  const resetView = () => map.setView([27.7136, -97.3252], 15);
+  const doZoomIn = () => {
+    if (!map) return;
+    try {
+      if (typeof map.zoomIn === 'function') map.zoomIn();
+      else if (typeof map.getZoom === 'function' && typeof map.setZoom === 'function') map.setZoom(map.getZoom() + 1);
+    } catch (e) {
+      // ignore
+    }
+  };
 
-  return null;
+  const doZoomOut = () => {
+    if (!map) return;
+    try {
+      if (typeof map.zoomOut === 'function') map.zoomOut();
+      else if (typeof map.getZoom === 'function' && typeof map.setZoom === 'function') map.setZoom(map.getZoom() - 1);
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  return (
+    <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 1200, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', pointerEvents: 'auto' }}>
+      {/* If we have a user location, show the use-location circular button first */}
+      {userLocation && (
+        <Button
+          shape="circle"
+          size="middle"
+          onClick={() => window.dispatchEvent(new CustomEvent('set-origin-to-user-location', { detail: userLocation }))}
+          className="use-location-btn"
+          aria-label="Use my current location"
+          title="Use my current location"
+          style={{ marginBottom: 6 }}
+        >
+          <EnvironmentOutlined style={{ color: '#1f7fe8', fontSize: 18 }} />
+        </Button>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, flexDirection: 'column' }}>
+        <button onClick={doZoomIn} style={{ border: 'none', background: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', borderRadius: 8, padding: 8, cursor: 'pointer' }} aria-label="Zoom in">
+          <ZoomInOutlined style={{ fontSize: 14, color: '#333' }} />
+        </button>
+        <button onClick={doZoomOut} style={{ border: 'none', background: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', borderRadius: 8, padding: 8, cursor: 'pointer' }} aria-label="Zoom out">
+          <ZoomOutOutlined style={{ fontSize: 14, color: '#333' }} />
+        </button>
+      </div>
+    </div>
+  );
 };
 
 const BuildingsPolygons = () => {
@@ -99,12 +141,31 @@ const BuildingsPolygons = () => {
   const [hoveredBuilding, setHoveredBuilding] = useState(null);
 
   useEffect(() => {
-    axios.get('/src/assets/buildings.txt')
-      .then(res => {
-        const geojson = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
-        setFeatures(geojson.features || []);
-      })
-      .catch(() => setFeatures([]));
+    const load = async () => {
+      // prefer bundled new file, fallback to public build file
+      const tryUrls = [
+        new URL('../assets/buildingsNew.txt', import.meta.url).href,
+        '/buildings.txt',
+        new URL('../assets/buildings.txt', import.meta.url).href,
+      ];
+
+      for (const url of tryUrls) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const dataText = await res.text();
+          const geojson = typeof dataText === 'string' ? JSON.parse(dataText) : dataText;
+          setFeatures(geojson.features || []);
+          return;
+        } catch (e) {
+          // try next
+        }
+      }
+
+      setFeatures([]);
+    };
+
+    load();
   }, []);
 
   // Color palette for different building types
@@ -125,7 +186,7 @@ const BuildingsPolygons = () => {
       const positions = feature.geometry.coordinates.map(ring => 
         ring.map(([lng, lat]) => [lat, lng])
       );
-      const buildingName = feature.properties?.name || 'Building';
+      const buildingName = feature.properties?.source_name || feature.properties?.name || 'Building';
       const buildingColor = getBuildingColor(buildingName);
       const isHovered = hoveredBuilding === idx;
 
@@ -327,16 +388,6 @@ const Map = ({ routeCoordinates, onRouteChange, directionsProps = null }) => {
           >
             <EnvironmentOutlined style={{ color: '#1f7fe8', fontSize: 18 }} />
           </Button>
-
-          {/* Zoom controls placed below location button */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <button onClick={() => mapRef.current && mapRef.current.zoomIn()} style={{ border: 'none', background: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', borderRadius: 8, padding: 8, cursor: 'pointer' }} aria-label="Zoom in">
-              <ZoomInOutlined style={{ fontSize: 14, color: '#333' }} />
-            </button>
-            <button onClick={() => mapRef.current && mapRef.current.zoomOut()} style={{ border: 'none', background: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', borderRadius: 8, padding: 8, cursor: 'pointer' }} aria-label="Zoom out">
-              <ZoomOutOutlined style={{ fontSize: 14, color: '#333' }} />
-            </button>
-          </div>
         </div>
       )}
       <MapContainer 
@@ -441,7 +492,7 @@ const Map = ({ routeCoordinates, onRouteChange, directionsProps = null }) => {
         
         <RouteAutoZoom routeCoordinates={routeCoordinates} />
         <BuildingsPolygons />
-        <MapControls onClearRoute={() => handleRouteUpdate(null)} />
+        <MapControls onClearRoute={() => handleRouteUpdate(null)} userLocation={userLocation} />
       </MapContainer>
 
       {/* In-map Directions Card (moved from sidebar) - always visible */}
