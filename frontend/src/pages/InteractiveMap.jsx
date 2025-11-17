@@ -53,6 +53,8 @@ function InteractiveMap() {
   const [directionLoading, setDirectionLoading] = useState(false);
   const [allBuildings, setAllBuildings] = useState([]);
   const [events, setEvents] = useState([]);
+  const [mapEvents, setMapEvents] = useState([]);
+  const [filteredEvents, setFilteredEvents] = useState([]);
   const [isRegistered, setIsRegistered] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registrationId, setRegistrationId] = useState(null);
@@ -120,13 +122,31 @@ function InteractiveMap() {
         // Fetch today's events (include all events that occur any time during today)
         const res = await axios.get('/events?when=today&limit=50');
         if (!mounted) return;
-        setEvents(Array.isArray(res.data) ? res.data : []);
+        const list = Array.isArray(res.data) ? res.data : [];
+        setEvents(list);
+        setFilteredEvents(list); // show today's events by default in right panel
       } catch (err) {
         console.error('Failed to load events from backend:', err);
         // leave events as empty array (UI will show empty state)
       }
     };
     loadEvents();
+    return () => { mounted = false; };
+  }, []);
+
+  // Fetch larger set of present+future events for map overlay and building matching
+  useEffect(() => {
+    let mounted = true;
+    const loadMapEvents = async () => {
+      try {
+        const res = await axios.get('/events?limit=500');
+        if (!mounted) return;
+        setMapEvents(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        console.error('Failed to load map events:', err);
+      }
+    };
+    loadMapEvents();
     return () => { mounted = false; };
   }, []);
 
@@ -367,7 +387,7 @@ function InteractiveMap() {
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  const filteredEvents = events;
+  // `filteredEvents` state holds the list shown in the right panel; updated by building clicks
 
   // Handle "To" search for destination building
   const handleToSearch = (value) => {
@@ -563,6 +583,14 @@ function InteractiveMap() {
             <Map
               routeCoordinates={routeCoordinates}
               onRouteChange={setRouteCoordinates}
+              events={mapEvents}
+              onBuildingSelect={(buildingName, eventsForBuilding) => {
+                if (Array.isArray(eventsForBuilding)) {
+                  setFilteredEvents(eventsForBuilding);
+                } else {
+                  setFilteredEvents([]);
+                }
+              }}
               directionsProps={{
                 hasGeolocation,
                 fromSearchValue,

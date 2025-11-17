@@ -136,7 +136,7 @@ const MapControls = ({ onClearRoute, userLocation }) => {
   );
 };
 
-const BuildingsPolygons = ({ directionsProps = null }) => {
+const BuildingsPolygons = ({ events = [], onBuildingSelect = null, directionsProps = null }) => {
   const [features, setFeatures] = useState([]);
   const [hoveredBuilding, setHoveredBuilding] = useState(null);
 
@@ -203,6 +203,68 @@ const BuildingsPolygons = ({ directionsProps = null }) => {
           eventHandlers={{
             mouseover: () => setHoveredBuilding(idx),
             mouseout: () => setHoveredBuilding(null),
+            click: async () => {
+              // when polygon clicked, compute events for this building (prefer provided events, otherwise fetch)
+              try {
+                let list = Array.isArray(events) && events.length > 0 ? events : null;
+                if (!list) {
+                  const resp = await axios.get('/events?limit=500');
+                  list = Array.isArray(resp.data) ? resp.data : [];
+                }
+                const now = Date.now();
+                const bn = String(buildingName || '').toLowerCase();
+                const eventsHere = (Array.isArray(list) ? list : []).filter(ev => {
+                  try {
+                    const props = ev.properties || {};
+                    // normalize building name and create acronym/tokens for fuzzy matching
+                    const bnRaw = String(buildingName || '').trim();
+                    const bn = bnRaw.toLowerCase();
+                    const words = bnRaw.split(/[^A-Za-z0-9]+/).filter(Boolean);
+                    const tokens = words.map(w => w.toLowerCase()).filter(t => t.length >= 2);
+                    const acronym = words.map(w => w[0]).join('').toLowerCase();
+
+                    const candidateFields = [];
+                    if (props.source_name) candidateFields.push(String(props.source_name));
+                    if (props.source_id) candidateFields.push(String(props.source_id));
+                    if (ev.location) candidateFields.push(String(ev.location));
+                    if (ev.venue) candidateFields.push(String(ev.venue));
+                    if (ev.address) candidateFields.push(String(ev.address));
+                    if (ev.title) candidateFields.push(String(ev.title));
+                    if (ev.description) candidateFields.push(String(ev.description));
+                    if (ev.organizations) candidateFields.push(Array.isArray(ev.organizations) ? ev.organizations.join(' ') : String(ev.organizations));
+
+                    const fieldMatches = candidateFields.some(f => {
+                      if (!f) return false;
+                      const lf = String(f).toLowerCase();
+                      // direct substring
+                      if (bn && lf.includes(bn)) return true;
+                      // acronym match (e.g., 'UC' -> 'university center')
+                      if (acronym && acronym.length >= 2 && lf.includes(acronym)) return true;
+                      // token-level match (any significant word present)
+                      for (const t of tokens) {
+                        if (lf.includes(t)) return true;
+                      }
+                      return false;
+                    });
+
+                    return fieldMatches;
+                  } catch (e) {
+                    return false;
+                  }
+                }).filter(ev => {
+                  // filter out events that have already ended. If no end provided, keep it.
+                  const end = ev.endsOn_dt || ev.endsOn || ev.endDate || ev.end;
+                  if (!end) return true;
+                  const t = Date.parse(end);
+                  if (isNaN(t)) return true;
+                  return t >= now;
+                });
+                if (onBuildingSelect) onBuildingSelect(buildingName, eventsHere);
+                else window.dispatchEvent(new CustomEvent('map-building-events', { detail: { name: buildingName, events: eventsHere } }));
+              } catch (e) {
+                // ignore
+              }
+            }
           }}
         >
           <Tooltip direction="top" className="custom-tooltip">
@@ -261,7 +323,7 @@ const BuildingsPolygons = ({ directionsProps = null }) => {
   });
 };
 
-const Map = ({ routeCoordinates, onRouteChange, directionsProps = null }) => {
+const Map = ({ routeCoordinates, onRouteChange, directionsProps = null, events = [], onBuildingSelect = null }) => {
   const [userLocation, setUserLocation] = useState(null);
   const [locationError, setLocationError] = useState(null);
   const [animPosition, setAnimPosition] = useState(null);
@@ -464,7 +526,7 @@ const Map = ({ routeCoordinates, onRouteChange, directionsProps = null }) => {
         )}
         
         <RouteAutoZoom routeCoordinates={routeCoordinates} />
-        <BuildingsPolygons directionsProps={directionsProps} />
+        <BuildingsPolygons directionsProps={directionsProps} events={events} onBuildingSelect={onBuildingSelect} />
         <MapControls onClearRoute={() => handleRouteUpdate(null)} userLocation={userLocation} />
       </MapContainer>
 
