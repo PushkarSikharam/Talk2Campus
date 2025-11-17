@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Layout, Card, Typography, Input, List, Space, Tag, Button, Empty, Modal, Form, InputNumber, message, Spin, AutoComplete, Divider } from 'antd';
 import { SearchOutlined, EnvironmentOutlined, ClockCircleOutlined, InfoCircleOutlined, ZoomInOutlined, ZoomOutOutlined, DeleteOutlined, EnvironmentFilled, EnvironmentTwoTone } from '@ant-design/icons';
 import 'antd/dist/reset.css';
@@ -12,42 +12,10 @@ const { Search } = Input;
 
 // Mock events data
 const mockEvents = [
-  {
-    id: 1,
-    title: 'Tech Career Fair',
-    location: 'Engineering Building',
-    time: '2:00 PM - 5:00 PM',
-    date: 'Today',
-    type: 'career',
-    attendees: 150,
-  },
-  {
-    id: 2,
-    title: 'Campus Tour',
-    location: 'Student Center',
-    time: '10:00 AM - 11:30 AM',
-    date: 'Tomorrow',
-    type: 'tour',
-    attendees: 45,
-  },
-  {
-    id: 3,
-    title: 'Biology Seminar',
-    location: 'Science Hall',
-    time: '3:00 PM - 4:30 PM',
-    date: 'Today',
-    type: 'academic',
-    attendees: 80,
-  },
-  {
-    id: 4,
-    title: 'Student Club Meeting',
-    location: 'Library Conference Room',
-    time: '6:00 PM - 7:00 PM',
-    date: 'Tomorrow',
-    type: 'social',
-    attendees: 30,
-  },
+  { id: 1, title: 'Tech Career Fair', location: 'Engineering Building', time: '2:00 PM - 5:00 PM', date: 'Today', type: 'career', attendees: 150 },
+  { id: 2, title: 'Campus Tour', location: 'Student Center', time: '10:00 AM - 11:30 AM', date: 'Tomorrow', type: 'tour', attendees: 45 },
+  { id: 3, title: 'Biology Seminar', location: 'Science Hall', time: '3:00 PM - 4:30 PM', date: 'Today', type: 'academic', attendees: 80 },
+  { id: 4, title: 'Student Club Meeting', location: 'Library Conference Room', time: '6:00 PM - 7:00 PM', date: 'Tomorrow', type: 'social', attendees: 30 },
 ];
 
 const eventTypeColors = {
@@ -60,7 +28,8 @@ const eventTypeColors = {
 function InteractiveMap() {
   const [siderWidth, setSiderWidth] = useState(() => {
     if (typeof window !== 'undefined') {
-      return Math.max(150, Math.floor(window.innerWidth * 0.75));
+      // make the right panel 5% bigger by reducing the left sider from 75% -> 70%
+      return Math.max(150, Math.floor(window.innerWidth * 0.70));
     }
     return 600;
   });
@@ -83,6 +52,8 @@ function InteractiveMap() {
   const [directionLoading, setDirectionLoading] = useState(false);
   const [allBuildings, setAllBuildings] = useState([]);
 
+  const locationAnnouncedRef = useRef(false);
+
   // Load buildings and get geolocation on mount
   useEffect(() => {
     // Load buildings from JSON file
@@ -95,6 +66,42 @@ function InteractiveMap() {
     loadBuildings();
     // Disable automatic geolocation for now — require manual From selection
     setHasGeolocation(false);
+
+    // Track whether we've already announced automatic detection (uses outer ref)
+
+    // Listen for user location events dispatched by Map component
+    const onUserLocation = (e) => {
+      const d = e.detail || {};
+      if (d.lat && d.lng) {
+        setOriginLat(d.lat);
+        setOriginLng(d.lng);
+        setHasGeolocation(true);
+        setFromSearchValue('My Location');
+        if (!locationAnnouncedRef.current) {
+          message.info('Current location detected and set as origin');
+          locationAnnouncedRef.current = true;
+        }
+      }
+    };
+
+    const onSetOrigin = (e) => {
+      const d = e.detail || {};
+      if (d.lat && d.lng) {
+        setOriginLat(d.lat);
+        setOriginLng(d.lng);
+        setHasGeolocation(true);
+        setFromSearchValue('My Location');
+        message.success('Origin set to your current location');
+      }
+    };
+
+    window.addEventListener('user-location-available', onUserLocation);
+    window.addEventListener('set-origin-to-user-location', onSetOrigin);
+    // cleanup
+    return () => {
+      window.removeEventListener('user-location-available', onUserLocation);
+      window.removeEventListener('set-origin-to-user-location', onSetOrigin);
+    };
   }, []);
 
   const handleMouseDown = (e) => {
@@ -308,38 +315,26 @@ function InteractiveMap() {
         >
           <div style={{ height: '100%', width: '100%', position: 'relative' }}>
             {/* Map Controls Overlay */}
-            <div style={{
-              position: 'absolute',
-              top: 16,
-              left: 16,
-              zIndex: 1000,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}>
-              <Button 
-                icon={<ZoomInOutlined />}
-                size="large"
-                style={{
-                  background: 'white',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  border: 'none',
-                  borderRadius: 12,
-                }}
-              />
-              <Button 
-                icon={<ZoomOutOutlined />}
-                size="large"
-                style={{
-                  background: 'white',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  border: 'none',
-                  borderRadius: 12,
-                }}
-              />
-            </div>
+            {/* zoom controls moved into Map component for placement under location button */}
             
-            <Map routeCoordinates={routeCoordinates} onRouteChange={setRouteCoordinates} />
+            <Map
+              routeCoordinates={routeCoordinates}
+              onRouteChange={setRouteCoordinates}
+              directionsProps={{
+                hasGeolocation,
+                fromSearchValue,
+                fromSearchOptions,
+                toSearchValue,
+                toSearchOptions,
+                handleFromSearch,
+                handleToSearch,
+                handleSelectFrom,
+                handleSelectDestination,
+                directionLoading,
+                manualFromBuilding,
+                setManualFromBuilding,
+              }}
+            />
           </div>
           
           {/* Enhanced Splitter Handle */}
@@ -396,118 +391,7 @@ function InteractiveMap() {
             padding: 20,
           }}>
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
-              {/* Directions Search Box */}
-              <Card 
-                style={{
-                  borderRadius: 12,
-                  background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(67, 206, 162, 0.05) 100%)',
-                  border: '1px solid rgba(102, 126, 234, 0.2)',
-                }}
-              >
-                <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <EnvironmentTwoTone twoToneColor={['#667eea', '#43cea2']} style={{ fontSize: 18 }} />
-                    <Title level={4} style={{ marginBottom: 0 }}>Get Directions</Title>
-                  </div>
-
-                  {/* From Field */}
-                  <div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>FROM</Text>
-                      <AutoComplete
-                        placeholder="Search your building"
-                        value={fromSearchValue}
-                        options={fromSearchOptions}
-                        onSearch={handleFromSearch}
-                        onSelect={(value) => handleSelectFrom(value)}
-                        onChange={(value) => setFromSearchValue(value)}
-                        style={{ marginTop: 4, width: '100%' }}
-                        filterOption={false}
-                        allowClear
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            if (fromSearchOptions && fromSearchOptions.length > 0) {
-                              const first = fromSearchOptions[0].value;
-                              handleSelectFrom(first);
-                            } else {
-                              message.info('No matching building found. Try typing more characters.');
-                            }
-                          }
-                        }}
-                      />
-                  </div>
-
-                  {/* To Field */}
-                  <div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>TO</Text>
-                    <Spin spinning={directionLoading}>
-                      <AutoComplete
-                        placeholder="Search destination building"
-                        value={toSearchValue}
-                        options={toSearchOptions}
-                        onSearch={handleToSearch}
-                        onSelect={(value) => handleSelectDestination(value)}
-                        onChange={(value) => setToSearchValue(value)}
-                        style={{ marginTop: 4, width: '100%' }}
-                        filterOption={false}
-                        allowClear
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            // If there are suggestions, select the first one
-                            if (toSearchOptions && toSearchOptions.length > 0) {
-                              const first = toSearchOptions[0].value;
-                              handleSelectDestination(first);
-                            } else {
-                              message.info('No matching building found. Try typing more characters.');
-                            }
-                          }
-                        }}
-                      />
-                    </Spin>
-                  </div>
-
-                  {/* Navigate button */}
-                  <div>
-                    <Button
-                      type="primary"
-                      block
-                      onClick={async () => {
-                        // Ensure from is selected
-                        if (!manualFromBuilding) {
-                          message.error('Please select a FROM building first');
-                          return;
-                        }
-                        if (!toSearchValue || toSearchValue.trim() === '') {
-                          message.error('Please enter a destination (TO)');
-                          return;
-                        }
-                        // Try to find destination and trigger route
-                        const dest = allBuildings.find(b => b.name === toSearchValue);
-                        if (!dest) {
-                          message.error('Destination not found. Please select from suggestions');
-                          return;
-                        }
-                        await handleSelectDestination(dest.name);
-                      }}
-                      disabled={!allBuildings || allBuildings.length === 0}
-                      style={{ marginTop: 8, borderRadius: 8 }}
-                    >
-                      Navigate
-                    </Button>
-                  </div>
-
-                  {/* Clear Route Button */}
-                  {routeCoordinates && (
-                    <Button 
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={handleClearRoute}
-                      style={{ borderRadius: 8, width: '100%' }}
-                    >
-                      Clear Route
-                    </Button>
-                  )}
-                </Space>
-              </Card>
+              {/* Directions Search Box moved into map overlay */}
 
               <Divider style={{ margin: '8px 0' }} />
 

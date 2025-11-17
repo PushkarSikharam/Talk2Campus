@@ -183,3 +183,28 @@ button, a, .leaflet-interactive {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* User location marker styling */
+.user-location-marker {
+  pointer-events: auto;
+}
+
+.custom-marker {
+  display: inline-block;
+}
+
+/* Use-my-location button (Google Maps style) */
+.use-location-btn {
+  background: white !important;
+  border: none !important;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+}
+.use-location-btn:hover {
+  transform: translateY(-2px);
+}
