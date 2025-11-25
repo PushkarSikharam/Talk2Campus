@@ -1,4 +1,10 @@
 
+/*
+  InteractiveMap page
+  - Hosts the map and the right-side events panel.
+  - Fetches events and buildings, wires map building clicks to update the events list,
+    and provides directions / routing interaction between panels.
+*/
 import React, { useState, useEffect, useRef } from 'react';
 import { Layout, Card, Typography, Input, List, Space, Tag, Button, Empty, Modal, Form, InputNumber, message, Spin, AutoComplete, Divider, Popconfirm } from 'antd';
 import { EnvironmentOutlined, ClockCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
@@ -58,6 +64,9 @@ function InteractiveMap() {
   const [isRegistered, setIsRegistered] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registrationId, setRegistrationId] = useState(null);
+  const [classSchedules, setClassSchedules] = useState([]);
+  const [scheduleChecked, setScheduleChecked] = useState(false);
+  const [scheduleConflict, setScheduleConflict] = useState(null); // { conflict: bool, course?: string, name?: string }
   // null = unknown/pending, true = authenticated, false = not authenticated
   const [isAuthenticated, setIsAuthenticated] = useState(null);
   const [unregistering, setUnregistering] = useState(false);
@@ -107,12 +116,46 @@ function InteractiveMap() {
 
     window.addEventListener('user-location-available', onUserLocation);
     window.addEventListener('set-origin-to-user-location', onSetOrigin);
+    // listen for building popup closed to reset right-panel events filter
+    const onBuildingClosed = () => {
+      try {
+        // reset to default events list (today's events)
+        if (Array.isArray(events) && events.length > 0) setFilteredEvents(events);
+        else setFilteredEvents([]);
+      } catch (e) { /* ignore */ }
+    };
+    window.addEventListener('map-building-closed', onBuildingClosed);
     // cleanup
     return () => {
       window.removeEventListener('user-location-available', onUserLocation);
       window.removeEventListener('set-origin-to-user-location', onSetOrigin);
+      window.removeEventListener('map-building-closed', onBuildingClosed);
     };
   }, []);
+
+  // On initial mapEvents load, show events starting today or later across all buildings
+  useEffect(() => {
+    if (!mapEvents || mapEvents.length === 0) return;
+    try {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const threshold = startOfToday.getTime();
+      const initial = (mapEvents || []).filter(ev => {
+        try {
+          const startRaw = ev.startsOn_dt || ev.startsOn || ev.startDate || ev.start;
+          if (!startRaw) return false;
+          const t = Date.parse(startRaw);
+          if (isNaN(t)) return false;
+          return t >= threshold;
+        } catch (e) {
+          return false;
+        }
+      });
+      setFilteredEvents(initial);
+    } catch (err) {
+      console.error('Failed to initialize filteredEvents from mapEvents:', err);
+    }
+  }, [mapEvents]);
 
   // Fetch upcoming events from backend (ends after now)
   useEffect(() => {
@@ -141,7 +184,13 @@ function InteractiveMap() {
       try {
         const res = await axios.get('/events?limit=500');
         if (!mounted) return;
-        setMapEvents(Array.isArray(res.data) ? res.data : []);
+        const list = Array.isArray(res.data) ? res.data : [];
+        // normalize shortLocation into a consistent lowercased field for easier matching
+        const normalized = list.map(ev => {
+          const rawShort = ev.shortLocation || ev.short_location || ev.shortLoc || ev.short || ev.location_short || (ev.event_snapshot && (ev.event_snapshot.shortLocation || ev.event_snapshot.short_location || ev.event_snapshot.short)) || ev.location || ev.venue || null;
+          return { ...ev, _shortLocNormalized: rawShort ? String(rawShort).toLowerCase().trim() : null };
+        });
+        setMapEvents(normalized);
       } catch (err) {
         console.error('Failed to load map events:', err);
       }
@@ -204,6 +253,78 @@ function InteractiveMap() {
       return JSON.stringify(o);
     } catch (e) {
       return String(o);
+    }
+  };
+
+  // Helper: determine if an event conflicts with a schedule entry
+  const computeScheduleConflict = (ev, schedule) => {
+    try {
+      const evStartRaw = ev.startsOn_dt || ev.startsOn || ev.startDate || ev.start;
+      if (!evStartRaw) return false;
+      const evStart = new Date(evStartRaw);
+      if (isNaN(evStart.getTime())) return false;
+
+      const evEndRaw = ev.endsOn_dt || ev.endsOn || ev.endDate || ev.end;
+      const evEnd = evEndRaw ? new Date(evEndRaw) : new Date(evStart.getTime() + 60 * 60 * 1000);
+
+      // Compare by local date string (YYYY-MM-DD) to avoid timezone shifts
+      const toISODate = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const evDateStr = toISODate(evStart);
+      if (Array.isArray(schedule.dates) && schedule.dates.length >= 2) {
+        const sdStr = String(schedule.dates[0]);
+        const edStr = String(schedule.dates[1]);
+        if (sdStr) {
+          if (evDateStr < sdStr) return false;
+        }
+        if (edStr) {
+          if (evDateStr > edStr) return false;
+        }
+      }
+
+      // Day-of-week match: normalize schedule.days entries to 3-letter lowercase and compare
+      if (Array.isArray(schedule.days) && schedule.days.length > 0) {
+        const dowNum = evStart.getDay(); // 0=Sun .. 6=Sat
+        const dowMap = ['sun','mon','tue','wed','thu','fri','sat'];
+        const evDow = dowMap[dowNum];
+        const okDay = schedule.days.some(d => {
+          if (!d) return false;
+          const nd = String(d).toLowerCase().slice(0,3);
+          return nd === evDow;
+        });
+        if (!okDay) return false;
+      }
+
+      // Time overlap: schedule.time is [start, end] in 'HH:mm'
+      if (Array.isArray(schedule.time) && schedule.time.length >= 2) {
+        const toMinutes = (s) => {
+          if (!s) return null;
+          const parts = String(s).split(':');
+          const hh = Number(parts[0] || 0);
+          const mm = Number(parts[1] || 0);
+          if (isNaN(hh) || isNaN(mm)) return null;
+          return hh * 60 + mm;
+        };
+        const schedStart = toMinutes(schedule.time[0]);
+        const schedEnd = toMinutes(schedule.time[1]);
+        if (schedStart == null || schedEnd == null) return false;
+
+        const evStartMinutes = evStart.getHours() * 60 + evStart.getMinutes();
+        const evEndMinutes = evEnd.getHours() * 60 + evEnd.getMinutes();
+
+        const overlap = (evStartMinutes < schedEnd) && (schedStart < evEndMinutes);
+        if (!overlap) return false;
+      }
+
+      return true;
+    } catch (e) {
+      console.error('computeScheduleConflict error', e);
+      return false;
     }
   };
 
@@ -294,16 +415,18 @@ function InteractiveMap() {
       }
 
       // have registrationId
-      try {
-        await doDelete(registrationId);
-        setIsRegistered(false);
-        setRegistrationId(null);
-        setEventModalVisible(false);
-        message.success('Unregistered from event');
-      } catch (err) {
-        console.error('Unregister error', err);
-        message.error(err?.message || 'Failed to unregister');
-      }
+        try {
+          await doDelete(registrationId);
+          setIsRegistered(false);
+          setRegistrationId(null);
+          setEventModalVisible(false);
+          message.success('Unregistered from event');
+          // notify nav bar to refresh registration count
+          try { window.dispatchEvent(new Event('registrations-changed')); } catch (e) { /* ignore */ }
+        } catch (err) {
+          console.error('Unregister error', err);
+          message.error(err?.message || 'Failed to unregister');
+        }
     } finally {
       setUnregistering(false);
     }
@@ -321,7 +444,6 @@ function InteractiveMap() {
         setIsAuthenticated(null); // pending
         try {
           const meRes = await axios.get('/me');
-          console.debug('InteractiveMap: GET /me ->', meRes?.status, meRes?.data);
           if (meRes && meRes.status === 200) {
             setIsAuthenticated(true);
           } else {
@@ -331,7 +453,7 @@ function InteractiveMap() {
             return;
           }
         } catch (authErr) {
-          console.debug('InteractiveMap: GET /me failed ->', authErr?.response?.status, authErr?.response?.data);
+          // /me failed, treat as not authenticated
           setIsAuthenticated(false);
           setIsRegistered(false);
           setRegistrationId(null);
@@ -340,7 +462,6 @@ function InteractiveMap() {
 
         try {
           const res = await axios.get(`/events/${selectedEvent.id}/is_registered`);
-          console.debug(`InteractiveMap: GET /events/${selectedEvent.id}/is_registered ->`, res?.status, res?.data);
           if (!mounted) return;
           const registered = Boolean(res.data && res.data.registered);
           setIsRegistered(registered);
@@ -361,6 +482,27 @@ function InteractiveMap() {
             } catch (err) {
               // ignore; registration id optional
             }
+          }
+          // Fetch user's class schedules and compute conflict status
+          try {
+            setScheduleChecked(false);
+            setScheduleConflict(null);
+            const schedRes = await axios.get('/class_schedule');
+            const schedules = Array.isArray(schedRes.data) ? schedRes.data : [];
+            if (!mounted) return;
+            setClassSchedules(schedules || []);
+            // compute first conflict if any
+            const matches = (schedules || []).filter(s => computeScheduleConflict(selectedEvent, s));
+            if (matches.length > 0) {
+              setScheduleConflict({ conflict: true, matches: matches.map(s => ({ course: s.course, name: s.name })) });
+            } else {
+              setScheduleConflict({ conflict: false, matches: [] });
+            }
+            setScheduleChecked(true);
+          } catch (schErr) {
+            // ignore schedule errors — just mark as checked but unknown
+            setScheduleChecked(true);
+            setScheduleConflict(null);
           }
         } catch (err) {
           if (mounted) setIsRegistered(false);
@@ -584,10 +726,49 @@ function InteractiveMap() {
               routeCoordinates={routeCoordinates}
               onRouteChange={setRouteCoordinates}
               events={mapEvents}
-              onBuildingSelect={(buildingName, eventsForBuilding) => {
-                if (Array.isArray(eventsForBuilding)) {
-                  setFilteredEvents(eventsForBuilding);
-                } else {
+              onBuildingSelect={(buildingName, eventsForBuilding, shortName) => {
+                try {
+                  // If we have a shortName from the geojson properties, prefer matching against the
+                  // preloaded `mapEvents` normalized `_shortLocNormalized` field and only include
+                  // events that start at or after now.
+                  if (shortName) {
+                    const sn = String(shortName).toLowerCase().trim();
+                    const now = Date.now();
+                    const matches = (mapEvents || []).filter(ev => {
+                      try {
+                        if (!ev._shortLocNormalized) return false;
+                        if (ev._shortLocNormalized !== sn) return false;
+                        const startRaw = ev.startsOn_dt || ev.startsOn || ev.startDate || ev.start;
+                        if (!startRaw) return false;
+                        const t = Date.parse(startRaw);
+                        if (isNaN(t)) return true;
+                        return t >= now;
+                      } catch (e) {
+                        return false;
+                      }
+                    });
+                    setFilteredEvents(matches);
+                    return;
+                  }
+
+                  // Fallback: if the Map component supplied an events array, use it (but keep only
+                  // events that start now or later).
+                  if (Array.isArray(eventsForBuilding)) {
+                    const now = Date.now();
+                    const filtered = eventsForBuilding.filter(ev => {
+                      const startRaw = ev.startsOn_dt || ev.startsOn || ev.startDate || ev.start;
+                      if (!startRaw) return false;
+                      const t = Date.parse(startRaw);
+                      if (isNaN(t)) return true;
+                      return t >= now;
+                    });
+                    setFilteredEvents(filtered);
+                    return;
+                  }
+
+                  setFilteredEvents([]);
+                } catch (err) {
+                  console.error('onBuildingSelect handler error', err);
                   setFilteredEvents([]);
                 }
               }}
@@ -893,6 +1074,34 @@ function InteractiveMap() {
                     <Text type="secondary">{getEventEndDateText(selectedEvent)}</Text>
                   </div>
                 ) : null}
+                <div style={{ marginTop: 8 }}>
+                  {scheduleChecked ? (
+                    scheduleConflict ? (
+                      scheduleConflict.conflict ? (
+                        <div>
+                          <Tag color="red">Conflict</Tag>
+                          <div style={{ marginTop: 6 }}>
+                            {scheduleConflict.matches && scheduleConflict.matches.length > 0 ? (
+                              scheduleConflict.matches.map((m, idx) => (
+                                <div key={idx} style={{ fontSize: 13 }}>
+                                  <Text type="danger">{m.course || m.name || 'Scheduled class'}</Text>
+                                </div>
+                              ))
+                            ) : (
+                              <Text type="danger">Scheduled class</Text>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <Tag color="green">No Conflict</Tag>
+                      )
+                    ) : (
+                      <Text type="secondary">Schedule check unavailable</Text>
+                    )
+                  ) : (
+                    <Spin size="small" />
+                  )}
+                </div>
               </div>
 
               <div>
@@ -934,6 +1143,8 @@ function InteractiveMap() {
                         const newId = resp?.data?.id || resp?.data?.registration_id || null;
                         if (newId) setRegistrationId(newId);
                         message.success('You are registered for this event');
+                          // notify nav bar to refresh registration count
+                          try { window.dispatchEvent(new Event('registrations-changed')); } catch (e) { /* ignore */ }
                       } catch (err) {
                         const status = err?.response?.status;
                         if (status === 401) {

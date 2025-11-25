@@ -93,7 +93,8 @@
           "fillOpacityHover": 0.75,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BH"
       }
     },
     {
@@ -396,7 +397,8 @@
           "fillOpacityHover": 0.68,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "CI"
       }
     },
     {
@@ -675,7 +677,8 @@
           "fillOpacityHover": 0.66,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "CA"
       }
     },
     {
@@ -846,7 +849,8 @@
           "fillOpacityHover": 0.68,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "CENT"
       }
     },
     {
@@ -981,7 +985,8 @@
           "fillOpacityHover": 0.65,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "CLAS"
       }
     },
     {
@@ -1092,7 +1097,8 @@
           "fillOpacityHover": 0.68,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "CLAS"
       }
     },
     {
@@ -1235,7 +1241,8 @@
           "fillOpacityHover": 0.65,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "HRI"
       }
     },
     {
@@ -1482,7 +1489,8 @@
           "fillOpacityHover": 0.64,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "EN"
       }
     },
     {
@@ -1809,7 +1817,8 @@
           "fillOpacityHover": 0.66,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "EARL"
       }
     },
     {
@@ -2060,7 +2069,8 @@
           "fillOpacityHover": 0.64,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "EDUC"
       }
     },
     {
@@ -2327,7 +2337,8 @@
           "fillOpacityHover": 0.72,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "IH"
       }
     },
     {
@@ -2630,7 +2641,8 @@
           "fillOpacityHover": 0.7,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "OCNR"
       }
     },
     {
@@ -2705,7 +2717,8 @@
           "fillOpacityHover": 0.64,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "MODU"
       }
     },
     {
@@ -2820,7 +2833,8 @@
           "fillOpacityHover": 0.68,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "SCIE"
       }
     },
     {
@@ -2915,7 +2929,8 @@
           "fillOpacityHover": 0.68,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "SCIE"
       }
     },
     {
@@ -3150,7 +3165,8 @@
           "fillOpacityHover": 0.63,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "TH"
       }
     },
     {
@@ -3285,7 +3301,8 @@
           "fillOpacityHover": 0.64,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "GLAS"
       }
     },
     {
@@ -3517,7 +3534,8 @@
           "fillOpacityHover": 0.67,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "HRI"
       }
     },
     {
@@ -3596,7 +3614,8 @@
           "fillOpacityHover": 0.67,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "ENGI"
       }
     },
     {
@@ -3923,7 +3942,8 @@
           "fillOpacityHover": 0.64,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "LIB"
       }
     },
     {
@@ -4078,7 +4098,8 @@
           "fillOpacityHover": 0.64,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "FC"
       }
     },
     {
@@ -4349,7 +4370,8 @@
           "fillOpacityHover": 0.64,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "STUD"
       }
     },
     {
@@ -4636,7 +4658,8 @@
           "fillOpacityHover": 0.71,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "UC"
       }
     },
     {
@@ -4755,7 +4778,8 @@
           "fillOpacityHover": 0.68,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "SAND"
       }
     },
     {
@@ -4966,7 +4990,8 @@
           "fillOpacityHover": 0.66,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "CARL"
       }
     },
     {
@@ -5229,7 +5254,8 @@
           "fillOpacityHover": 0.84,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "PELI"
       }
     },
     {
@@ -5520,7 +5546,8 @@
           "fillOpacityHover": 0.82,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "LAGU"
       }
     },
     {
@@ -5799,7 +5826,8 @@
           "fillOpacityHover": 0.83,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "MARI"
       }
     },
     {
@@ -6074,7 +6102,8 @@
           "fillOpacityHover": 0.9,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -6481,7 +6510,8 @@
           "fillOpacityHover": 0.86,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -6636,7 +6666,8 @@
           "fillOpacityHover": 0.81,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "RECR"
       }
     },
     {
@@ -6839,7 +6870,8 @@
           "fillOpacityHover": 0.84,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "OFFI"
       }
     },
     {
@@ -7158,7 +7190,8 @@
           "fillOpacityHover": 0.85,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -7509,7 +7542,8 @@
           "fillOpacityHover": 0.86,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -7852,7 +7886,8 @@
           "fillOpacityHover": 0.84,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -8123,7 +8158,8 @@
           "fillOpacityHover": 0.82,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -8474,7 +8510,8 @@
           "fillOpacityHover": 0.85,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -8789,7 +8826,8 @@
           "fillOpacityHover": 0.84,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -9140,7 +9178,8 @@
           "fillOpacityHover": 0.85,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -9463,7 +9502,8 @@
           "fillOpacityHover": 0.82,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -9834,7 +9874,8 @@
           "fillOpacityHover": 0.86,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "DOLP"
       }
     },
     {
@@ -10057,7 +10098,8 @@
           "fillOpacityHover": 0.82,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "HARB"
       }
     },
     {
@@ -10272,7 +10314,8 @@
           "fillOpacityHover": 0.84,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "PORT"
       }
     },
     {
@@ -10671,7 +10714,8 @@
           "fillOpacityHover": 0.87,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BAYS"
       }
     },
     {
@@ -10974,7 +11018,8 @@
           "fillOpacityHover": 0.9,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "ANCH"
       }
     },
     {
@@ -11301,7 +11346,8 @@
           "fillOpacityHover": 0.82,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "TARP"
       }
     },
     {
@@ -11612,7 +11658,8 @@
           "fillOpacityHover": 0.84,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "COMP"
       }
     },
     {
@@ -11779,7 +11826,8 @@
           "fillOpacityHover": 0.82,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "SURF"
       }
     },
     {
@@ -11974,7 +12022,8 @@
           "fillOpacityHover": 0.86,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "JETT"
       }
     },
     {
@@ -12281,7 +12330,8 @@
           "fillOpacityHover": 0.81,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "CORA"
       }
     },
     {
@@ -12376,7 +12426,8 @@
           "fillOpacityHover": 0.84,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "MAIN"
       }
     },
     {
@@ -12679,7 +12730,8 @@
           "fillOpacityHover": 0.85,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -12990,7 +13042,8 @@
           "fillOpacityHover": 0.84,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -13337,7 +13390,8 @@
           "fillOpacityHover": 0.84,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BUIL"
       }
     },
     {
@@ -13544,7 +13598,8 @@
           "fillOpacityHover": 0.88,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "CLUB"
       }
     },
     {
@@ -13735,7 +13790,8 @@
           "fillOpacityHover": 0.72,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "CBI"
       }
     },
     {
@@ -13794,7 +13850,8 @@
           "fillOpacityHover": 0.68,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "BOAT"
       }
     },
     {
@@ -13893,7 +13950,8 @@
           "fillOpacityHover": 0.7,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "CENT"
       }
     },
     {
@@ -14052,7 +14110,8 @@
           "fillOpacityHover": 0.66,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "PHYS"
       }
     },
     {
@@ -14131,7 +14190,8 @@
           "fillOpacityHover": 0.69,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "PRIN"
       }
     },
     {
@@ -14210,7 +14270,8 @@
           "fillOpacityHover": 0.65,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "PURC"
       }
     },
     {
@@ -14301,7 +14362,8 @@
           "fillOpacityHover": 0.65,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "UNIV"
       }
     },
     {
@@ -14376,7 +14438,8 @@
           "fillOpacityHover": 0.66,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "UNIV"
       }
     },
     {
@@ -14495,7 +14558,8 @@
           "fillOpacityHover": 0.68,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "UNIV"
       }
     },
     {
@@ -14626,7 +14690,8 @@
           "fillOpacityHover": 0.65,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "DRIF"
       }
     },
     {
@@ -14777,7 +14842,8 @@
           "fillOpacityHover": 0.7,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "PAC"
       }
     },
     {
@@ -14844,7 +14910,8 @@
           "fillOpacityHover": 0.71,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "IWC"
       }
     },
     {
@@ -14995,7 +15062,8 @@
           "fillOpacityHover": 0.69,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "DH"
       }
     },
     {
@@ -15198,7 +15266,8 @@
           "fillOpacityHover": 0.76,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "CENT"
       }
     },
     {
@@ -15469,7 +15538,8 @@
           "fillOpacityHover": 0.68,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "DWC"
       }
     },
     {
@@ -15716,7 +15786,8 @@
           "fillOpacityHover": 0.67,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "DWC"
       }
     },
     {
@@ -15831,7 +15902,8 @@
           "fillOpacityHover": 0.65,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "DWC"
       }
     },
     {
@@ -16022,7 +16094,8 @@
           "fillOpacityHover": 0.64,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "DWC"
       }
     },
     {
@@ -16137,7 +16210,8 @@
           "fillOpacityHover": 0.69,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "RECS"
       }
     },
     {
@@ -16332,7 +16406,8 @@
           "fillOpacityHover": 0.7,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "MOOD"
       }
     },
     {
@@ -16471,7 +16546,8 @@
           "fillOpacityHover": 0.65,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "AMER"
       }
     },
     {
@@ -16738,7 +16814,8 @@
           "fillOpacityHover": 0.64,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "ARTM"
       }
     },
     {
@@ -17033,7 +17110,8 @@
           "fillOpacityHover": 0.79,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "AWC"
       }
     },
     {
@@ -17160,7 +17238,8 @@
           "fillOpacityHover": 0.79,
           "icon": false,
           "position": false
-        }
+        },
+        "shortName": "ANTO"
       }
     }
   ]

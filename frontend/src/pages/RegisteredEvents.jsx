@@ -1,3 +1,8 @@
+/*
+	RegisteredEvents page
+	- Displays the current user's registrations and allows viewing details and unregistering.
+	- Sanitizes event descriptions before rendering and checks auth state periodically.
+*/
 import React, { useEffect, useState } from 'react';
 import { List, Card, Typography, Spin, Empty, Button, Modal, Divider, Space, Popconfirm, message, Tag } from 'antd';
 
@@ -117,6 +122,36 @@ const getEventEndDateText = (ev) => {
 	}
 };
 
+// Countdown helper: returns { ms, label, status }
+const computeCountdown = (start) => {
+	if (!start) return { ms: NaN, label: 'Unknown', status: 'unknown' };
+	const s = new Date(start);
+	if (isNaN(s)) return { ms: NaN, label: String(start), status: 'unknown' };
+	const now = new Date();
+	const ms = s.getTime() - now.getTime();
+	const absMs = Math.abs(ms);
+	const sign = ms >= 0 ? 1 : -1;
+
+	const days = Math.floor(absMs / (1000 * 60 * 60 * 24));
+	const hours = Math.floor((absMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+	const minutes = Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60));
+
+	let label = '';
+	if (ms > 0) {
+		if (days > 0) label = `${days}d ${hours}h`;
+		else if (hours > 0) label = `${hours}h ${minutes}m`;
+		else label = `${minutes}m`;
+	} else {
+		// already started or passed
+		if (days > 0) label = `${days}d ${hours}h ago`;
+		else if (hours > 0) label = `${hours}h ${minutes}m ago`;
+		else label = `${minutes}m ago`;
+	}
+
+	const status = ms > 0 ? (ms <= 24 * 60 * 60 * 1000 ? 'imminent' : 'upcoming') : 'past';
+	return { ms, label, status };
+};
+
 // sanitized HTML description for modal
 const useSanitizedDescription = (raw) => {
 	const [sanitized, setSanitized] = useState('');
@@ -159,6 +194,13 @@ const RegisteredEvents = () => {
 	const [modalVisible, setModalVisible] = useState(false);
 	const [unregistering, setUnregistering] = useState(false);
 	const [isAuthenticated, setIsAuthenticated] = useState(null);
+
+	// now ticks to keep countdowns fresh
+	const [nowTick, setNowTick] = useState(Date.now());
+	useEffect(() => {
+		const id = setInterval(() => setNowTick(Date.now()), 30 * 1000); // update every 30s
+		return () => clearInterval(id);
+	}, []);
 
 	// sanitized HTML for selected event description
 	const selectedRawDescription = selected ? extractDescription(selected.event) : '';
@@ -293,29 +335,41 @@ const RegisteredEvents = () => {
 					return (
 						<List.Item>
 							<Card hoverable style={{ borderRadius: 12 }}>
-								<Title level={4} style={{ marginBottom: 6 }}>{title}</Title>
-								<Paragraph style={{ marginBottom: 6, color: '#666' }}>{loc}</Paragraph>
-								<Paragraph style={{ marginBottom: 6, color: '#666' }}><Text strong>Organization :</Text> {orgNames || extractOrganization(event) || '—'}</Paragraph>
-								<Paragraph style={{ marginBottom: 6, color: '#888' }}>{startText || ''}</Paragraph>
-								{endText ? <Paragraph style={{ marginBottom: 12, color: '#888' }}>Ends: {endText}</Paragraph> : null}
-								<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-									<Button type="default" onClick={() => openDetails(item)}>View</Button>
-									{!isAuthenticated ? (
-										<Button disabled>Login to register</Button>
-									) : (
-										<Popconfirm
-											title="Unregister from this event?"
-											onConfirm={() => handleUnregister(item.registration_id)}
-											okText="Yes"
-											cancelText="No"
-										>
-											<Button danger>Unregister</Button>
-										</Popconfirm>
-									)}
+								<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+									<div style={{ flex: 1 }}>
+										<Title level={4} style={{ marginBottom: 6 }}>{title}</Title>
+										<Paragraph style={{ marginBottom: 6, color: '#666' }}>{loc}</Paragraph>
+										<Paragraph style={{ marginBottom: 6, color: '#666' }}><Text strong>Organization :</Text> {orgNames || extractOrganization(event) || '—'}</Paragraph>
+										<Paragraph style={{ marginBottom: 6, color: '#888' }}>{startText || ''}</Paragraph>
+										{endText ? <Paragraph style={{ marginBottom: 12, color: '#888' }}>Ends: {endText}</Paragraph> : null}
+									</div>
+									<div style={{ marginLeft: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+										{/* Countdown tag */}
+										{(() => {
+											const cd = computeCountdown(event.startsOn_dt || event.startsOn || event.start || event.startsOn);
+											const color = cd.status === 'past' ? 'red' : (cd.status === 'imminent' ? 'orange' : 'green');
+											return <Tag color={color} style={{ fontSize: 12 }}>{cd.label}</Tag>;
+										})()}
+										<div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+											<Button type="default" onClick={() => openDetails(item)}>View</Button>
+											{!isAuthenticated ? (
+												<Button disabled>Login to register</Button>
+											) : (
+												<Popconfirm
+													title="Unregister from this event?"
+													onConfirm={() => handleUnregister(item.registration_id)}
+													okText="Yes"
+													cancelText="No"
+												>
+													<Button danger>Unregister</Button>
+												</Popconfirm>
+											)}
+										</div>
+									</div>
 								</div>
 							</Card>
-						</List.Item>
-					);
+							</List.Item>
+						);
 				}}
 			/>
 
@@ -344,6 +398,14 @@ const RegisteredEvents = () => {
 								<div>
 									<Text strong>Starts: </Text>
 									<Text type="secondary">{getEventDateText(selected.event) || '—'}</Text>
+									{/* countdown in modal */}
+									<div style={{ marginTop: 6 }}>
+										{(() => {
+											const cd = computeCountdown(selected.event.startsOn_dt || selected.event.startsOn || selected.event.start || selected.event.startsOn);
+											const color = cd.status === 'past' ? 'red' : (cd.status === 'imminent' ? 'orange' : 'green');
+											return <Tag color={color}>{cd.label}</Tag>;
+										})()}
+									</div>
 								</div>
 								{getEventEndDateText(selected.event) ? (
 									<div style={{ marginTop: 6 }}>

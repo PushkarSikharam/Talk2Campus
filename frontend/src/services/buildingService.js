@@ -1,3 +1,10 @@
+/*
+  buildingService
+  - Loads campus buildings from the bundled GeoJSON assets and exposes helpers to
+    obtain a simple list of building names and centroid coordinates for search
+    and directions UI.
+  - Caches parsed results in-memory for the session.
+*/
 let buildingsCache = null;
 
 /**
@@ -120,7 +127,6 @@ export const getBuildingsList = async () => {
   const unique = Array.from(new Map(buildings.map(b => [b.name, b])).values());
   unique.sort((a, b) => a.name.localeCompare(b.name));
   buildingsCache = unique;
-  console.log(`Loaded ${buildingsCache.length} buildings from file`);
   return buildingsCache;
 };
 

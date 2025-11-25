@@ -1,6 +1,7 @@
 // src/components/NavBar.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Menu, Dropdown, Button, Drawer, Grid, Badge } from 'antd';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -10,6 +11,7 @@ import {
   MenuOutlined,
   HomeOutlined,
   BellOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 
 const { useBreakpoint } = Grid;
@@ -18,20 +20,54 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const screens = useBreakpoint();
   const navigate = useNavigate();
+  const [regCount, setRegCount] = useState(0);
 
   const showDrawer = () => setDrawerVisible(true);
   const closeDrawer = () => setDrawerVisible(false);
 
+  // Fetch registered events count for badge when user is logged in
+  useEffect(() => {
+    let mounted = true;
+    const loadCount = async () => {
+      if (!isLoggedIn) {
+        if (mounted) setRegCount(0);
+        return;
+      }
+      try {
+        const res = await axios.get('/registrations', { withCredentials: true, baseURL: 'http://localhost:8000' });
+        if (!mounted) return;
+        const list = Array.isArray(res.data) ? res.data : [];
+        setRegCount(list.length);
+      } catch (e) {
+        // on auth error or other error, show 0
+        if (mounted) setRegCount(0);
+      }
+    };
+    loadCount();
+    // Listen for registration changes to refresh count and perform short polling
+    let intervalId = null;
+    let timeoutId = null;
+    const onRegsChanged = () => {
+      loadCount();
+      if (intervalId) clearInterval(intervalId);
+      if (timeoutId) clearTimeout(timeoutId);
+      intervalId = setInterval(loadCount, 10000); // poll every 10s
+      timeoutId = setTimeout(() => { clearInterval(intervalId); intervalId = null; timeoutId = null; }, 30000); // stop after 30s
+    };
+    window.addEventListener('registrations-changed', onRegsChanged);
+    return () => { mounted = false; window.removeEventListener('registrations-changed', onRegsChanged); if (intervalId) clearInterval(intervalId); if (timeoutId) clearTimeout(timeoutId); };
+  }, [isLoggedIn]);
+
   const userMenuItems = [
     { key: 'profile', label: <Link to="/edit-profile" onClick={closeDrawer}>Edit Profile</Link> },
     { key: 'schedule', label: <Link to="/edit-class-schedule" onClick={closeDrawer}>Edit Class Schedule</Link> },
-    { key: 'registered', label: <Link to="/registered-events" onClick={closeDrawer}>Registered Events</Link> },
     { key: 'logout', label: 'Logout', onClick: () => { handleLogout(); closeDrawer(); navigate('/interactive-map'); } },
   ];
 
   const menuItemsArray = [
     { key: 'home', icon: <HomeOutlined />, label: <Link to="/" onClick={closeDrawer} style={{ color: 'white' }}>Home</Link> },
     { key: 'map', icon: <GlobalOutlined />, label: <Link to="/interactive-map" onClick={closeDrawer} style={{ color: 'white' }}>Interactive Map</Link> },
+    { key: 'events', icon: <CalendarOutlined />, label: <Link to="/events" onClick={closeDrawer} style={{ color: 'white' }}>Events</Link> },
     { key: 'ai', icon: <RobotOutlined />, label: <Link to="/ai-agent" onClick={closeDrawer} style={{ color: 'white' }}>AI Agent</Link> },
   ];
 
@@ -39,9 +75,11 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
     menuItemsArray.push({ 
       key: 'notifications', 
       label: (
-        <Badge count={3} size="small">
-          <BellOutlined style={{ fontSize: 20, color: 'white' }} />
-        </Badge>
+        <Link to="/registered-events" onClick={closeDrawer}>
+          <Badge count={regCount} size="small">
+            <BellOutlined style={{ fontSize: 20, color: 'white' }} />
+          </Badge>
+        </Link>
       ),
       style: { marginLeft: 'auto' } 
     });

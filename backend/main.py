@@ -180,22 +180,6 @@ async def logout(response: Response):
     response.set_cookie(key='access_token', value='', httponly=True, samesite='lax', secure=False, max_age=0)
     return {"detail": "logged out"}
 
-def get_current_user(authorization: str = Header(None), access_token: str = Cookie(None)):
-    token = None
-    if authorization:
-        scheme, _, token_part = authorization.partition(' ')
-        if scheme.lower() == 'bearer' and token_part:
-            token = token_part
-    if not token and access_token:
-        token = access_token
-    if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Missing authorization')
-    try:
-        payload = decode_access_token(token)
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token')
-    return payload
-
 @app.get('/me')
 async def me(payload: dict = Depends(get_current_user)):
     user_id = payload.get('sub')
@@ -554,60 +538,12 @@ async def get_my_registrations(limit: int = 50, payload: dict = Depends(get_curr
     return out
 
 
-@app.get('/registrations/user/{user_id}')
-async def get_registrations_for_user(user_id: str, limit: int = 50, payload: dict = Depends(get_current_user)):
-    """Return registrations for a specific user id. Caller must be the same user.
-
-    This endpoint allows the frontend (or API client) to request registrations for a given
-    user id but only when authenticated as that user.
-    """
-    caller_id = payload.get('sub')
-    if not caller_id:
-        raise HTTPException(status_code=401, detail='Missing user id')
-    # Only allow users to fetch their own registrations
-    if caller_id != user_id:
-        raise HTTPException(status_code=403, detail='Forbidden')
-
-    try:
-        regs = get_registrations_collection()
-        events_col = get_events_collection()
-    except Exception:
-        raise HTTPException(status_code=500, detail='Collections not available')
-
-    # Support registrations saved with either a string user_id or an ObjectId user_id
-    query = {'$or': [{'user_id': user_id}]}
-    try:
-        if ObjectId.is_valid(user_id):
-            query['$or'].append({'user_id': ObjectId(user_id)})
-    except Exception:
-        pass
-    cursor = regs.find(query).sort('created_at', -1)
-    reg_docs = await cursor.to_list(length=limit)
-
-    out = []
-    for r in reg_docs:
-        event_id = r.get('event_id')
-        event_doc = r.get('event_snapshot')
-        if not event_doc and event_id and (events_col is not None):
-            try:
-                if ObjectId.is_valid(event_id):
-                    event_doc = await events_col.find_one({'_id': ObjectId(event_id)})
-                if not event_doc:
-                    event_doc = await events_col.find_one({'id': event_id})
-                if not event_doc:
-                    event_doc = await events_col.find_one({'source_id': event_id})
-            except Exception:
-                event_doc = None
-            if event_doc:
-                try:
-                    event_doc['id'] = str(event_doc.get('_id'))
-                except Exception:
-                    event_doc['id'] = event_doc.get('_id')
-                event_doc.pop('_id', None)
-
-        out.append({'registration_id': str(r.get('_id')), 'created_at': r.get('created_at'), 'event': event_doc})
-
-    return out
+"""
+Deprecated endpoint removed: `/registrations/user/{user_id}` was redundant with
+`GET /registrations` (which returns registrations for the current authenticated
+user). Removed to simplify the API surface. If you need per-user lookup by id,
+we can reintroduce a parameterized endpoint guarded by admin permissions.
+"""
 
 
 @app.delete('/registrations/{registration_id}')

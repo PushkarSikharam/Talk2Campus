@@ -1,3 +1,10 @@
+/*
+  Map component
+  - Renders campus map with building polygons, route visualization, and simple controls.
+  - Building click handler computes candidate events for the building and notifies the parent
+    via the `onBuildingSelect` callback or a `map-building-events` window event.
+  - Popups and tooltips are styled to avoid visual overlap.
+*/
 import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Polygon, Tooltip, Popup, useMap, Polyline, CircleMarker, Marker } from 'react-leaflet';
 import { Card, Typography, Space, Button, Tag, AutoComplete, Spin, message } from 'antd';
@@ -223,6 +230,21 @@ const BuildingsPolygons = ({ events = [], onBuildingSelect = null, directionsPro
                     const tokens = words.map(w => w.toLowerCase()).filter(t => t.length >= 2);
                     const acronym = words.map(w => w[0]).join('').toLowerCase();
 
+                    // Prefer matching by building short name (from buildings GeoJSON) against event.shortLocation
+                    const shortNameRaw = feature.properties?.shortName || feature.properties?.short_name || feature.properties?.short || feature.properties?.code || null;
+                    const shortName = shortNameRaw ? String(shortNameRaw).trim().toLowerCase() : null;
+
+                    const evShort = ev._shortLocNormalized || (ev.shortLocation || ev.short_location || ev.shortLoc || ev.short || ev.location_short || null);
+                    const evShortNorm = evShort ? String(evShort).trim().toLowerCase() : null;
+
+                    if (shortName && evShortNorm) {
+                      // exact or contains match for short codes
+                      if (evShortNorm === shortName) return true;
+                      if (evShortNorm.includes(shortName)) return true;
+                      if (shortName.includes(evShortNorm)) return true;
+                    }
+
+                    // Fallback: check usual candidate fields with fuzzy matching (as before)
                     const candidateFields = [];
                     if (props.source_name) candidateFields.push(String(props.source_name));
                     if (props.source_id) candidateFields.push(String(props.source_id));
@@ -259,8 +281,13 @@ const BuildingsPolygons = ({ events = [], onBuildingSelect = null, directionsPro
                   if (isNaN(t)) return true;
                   return t >= now;
                 });
-                if (onBuildingSelect) onBuildingSelect(buildingName, eventsHere);
-                else window.dispatchEvent(new CustomEvent('map-building-events', { detail: { name: buildingName, events: eventsHere } }));
+                // Matching details computed; emit events to parent. (debug logs removed)
+
+                // derive short name used in buildings geojson (if available)
+                const shortNameRaw = feature.properties?.shortName || feature.properties?.short_name || feature.properties?.short || feature.properties?.code || null;
+                const shortName = shortNameRaw ? String(shortNameRaw).toLowerCase().trim() : null;
+                if (onBuildingSelect) onBuildingSelect(buildingName, eventsHere, shortName);
+                else window.dispatchEvent(new CustomEvent('map-building-events', { detail: { name: buildingName, events: eventsHere, shortName } }));
               } catch (e) {
                 // ignore
               }
@@ -271,7 +298,11 @@ const BuildingsPolygons = ({ events = [], onBuildingSelect = null, directionsPro
             <Text strong style={{ fontSize: 13 }}>{buildingName}</Text>
           </Tooltip>
           
-          <Popup offset={[0, 14]} className="building-popup">
+          <Popup offset={[0, 14]} className="building-popup" onClose={() => {
+            try {
+              window.dispatchEvent(new Event('map-building-closed'));
+            } catch (e) { /* ignore */ }
+          }}>
             <div className="building-popup-content">
               <div className="building-popup-header">
                 <div className="building-popup-color-dot" style={{ background: buildingColor }} />

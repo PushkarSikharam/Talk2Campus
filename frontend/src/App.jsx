@@ -12,6 +12,7 @@ import EditProfile from './pages/EditProfile';
 import EditClassSchedule from './pages/EditClassSchedule';
 import SignUp from './pages/SignUp';
 import RegisteredEvents from './pages/RegisteredEvents';
+import EventsPage from './pages/Events';
 // We need to import Layout a specific way for this structure
 import { Layout } from 'antd';
 
@@ -51,6 +52,7 @@ const App = () => {
               <Route path="/edit-profile" element={<EditProfile />} />
               <Route path="/edit-class-schedule" element={<EditClassSchedule />} />
               <Route path="/registered-events" element={<RegisteredEvents />} />
+              <Route path="/events" element={<EventsPage />} />
               <Route path="/signup" element={<SignUp />} />
               <Route path="/" element={<Home />} />
             </Routes>

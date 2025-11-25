@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card, Typography, Row, Col, Button, Space } from 'antd';
+import { Link } from 'react-router-dom';
 import { GlobalOutlined, RobotOutlined, CalendarOutlined, ArrowRightOutlined, StarFilled } from '@ant-design/icons';
 
 const { Title, Paragraph } = Typography;
@@ -65,11 +66,11 @@ const Home = () => (
           </Paragraph>
 
           <Space size="large" style={{ marginTop: 20 }}>
-            <Button 
-              type="primary" 
-              size="large" 
-              href="/signup"
-              icon={<StarFilled />}
+            <Link to="/signup">
+              <Button 
+                type="primary" 
+                size="large" 
+                icon={<StarFilled />}
               style={{ 
                 height: 56,
                 fontSize: 18,
@@ -78,11 +79,12 @@ const Home = () => (
               }}
             >
               Get Started Now
-            </Button>
-            <Button 
-              size="large" 
-              href="/interactive-map"
-              icon={<ArrowRightOutlined />}
+              </Button>
+            </Link>
+            <Link to="/interactive-map">
+              <Button 
+                size="large" 
+                icon={<ArrowRightOutlined />}
               style={{ 
                 height: 56,
                 fontSize: 18,
@@ -94,7 +96,8 @@ const Home = () => (
               }}
             >
               Explore Map
-            </Button>
+              </Button>
+            </Link>
           </Space>
         </Space>
       </div>
@@ -249,9 +252,9 @@ const Home = () => (
         <Paragraph style={{ color: 'rgba(255,255,255,0.95)', fontSize: 18, marginBottom: 0 }}>
           Join thousands of students already using Talk2Campus
         </Paragraph>
-        <Button 
-          size="large"
-          href="/signup"
+        <Link to="/signup">
+          <Button 
+            size="large"
           style={{ 
             height: 56,
             fontSize: 18,
@@ -264,7 +267,8 @@ const Home = () => (
           }}
         >
           Get Started Free →
-        </Button>
+          </Button>
+        </Link>
       </Space>
     </Card>
   </div>
