@@ -1,5 +1,11 @@
 import axios from 'axios';
 
+const logRouteServiceIssue = (...args) => {
+  if (import.meta.env.DEV) {
+    console.warn(...args);
+  }
+};
+
 /**
  * Fetch a route from the backend and return coordinates.
  */
@@ -31,7 +37,7 @@ export const getRouteCoordinates = async (
 
     return response.data.coordinates || [];
   } catch (error) {
-    console.error('Error fetching route:', error.message);
+    logRouteServiceIssue('Error fetching route:', error?.message || error);
     throw error;
   }
 };

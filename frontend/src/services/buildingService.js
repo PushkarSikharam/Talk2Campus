@@ -6,6 +6,11 @@
   - Caches parsed results in-memory for the session.
 */
 let buildingsCache = null;
+const logBuildingServiceIssue = (...args) => {
+  if (import.meta.env.DEV) {
+    console.warn(...args);
+  }
+};
 
 /**
  * Compute a simple centroid for a GeoJSON Polygon ring (array of [lng, lat])
@@ -60,7 +65,7 @@ export const getBuildingsList = async () => {
   }
 
   if (!buildingsData) {
-    console.error('Could not load any buildings file');
+    logBuildingServiceIssue('Could not load any buildings file');
     return [];
   }
 

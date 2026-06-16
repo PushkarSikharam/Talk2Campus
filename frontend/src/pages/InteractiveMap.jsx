@@ -25,6 +25,11 @@ const CAMPUS_FALLBACK_ORIGIN = {
   lng: -97.3252,
   label: 'Campus Center',
 };
+const logInteractiveMapIssue = (...args) => {
+  if (import.meta.env.DEV) {
+    console.warn(...args);
+  }
+};
 
 // (placeholder removed) We'll fetch events from backend
 
@@ -92,7 +97,7 @@ function InteractiveMap() {
     };
     
     loadBuildings();
-    // Disable automatic geolocation for now — require manual From selection
+    // Start with auto-location when available, otherwise fall back to campus center.
     setHasGeolocation(false);
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setOriginLat(CAMPUS_FALLBACK_ORIGIN.lat);
@@ -112,7 +117,7 @@ function InteractiveMap() {
         setHasGeolocation(true);
         setFromSearchValue('My Location');
         if (!locationAnnouncedRef.current) {
-          message.info('Current location detected and set as origin');
+          message.info('Using your current location for directions.');
           locationAnnouncedRef.current = true;
         }
       }
@@ -125,7 +130,7 @@ function InteractiveMap() {
         setOriginLng(d.lng);
         setHasGeolocation(true);
         setFromSearchValue('My Location');
-        message.success('Origin set to your current location');
+        message.success('Starting from your current location.');
       }
     };
 
@@ -181,7 +186,7 @@ function InteractiveMap() {
       });
       setFilteredEvents(initial);
     } catch (err) {
-      console.error('Failed to initialize filteredEvents from mapEvents:', err);
+      logInteractiveMapIssue('Failed to initialize filtered events:', err);
     }
   }, [mapEvents]);
 
@@ -197,7 +202,7 @@ function InteractiveMap() {
         setEvents(list);
         setFilteredEvents(list); // show today's events by default in right panel
       } catch (err) {
-        console.error('Failed to load events from backend:', err);
+        logInteractiveMapIssue('Failed to load events from backend:', err);
         // leave events as empty array (UI will show empty state)
       }
     };
@@ -220,7 +225,7 @@ function InteractiveMap() {
         });
         setMapEvents(normalized);
       } catch (err) {
-        console.error('Failed to load map events:', err);
+        logInteractiveMapIssue('Failed to load map events:', err);
       }
     };
     loadMapEvents();
@@ -350,7 +355,7 @@ function InteractiveMap() {
 
       return true;
     } catch (e) {
-      console.error('computeScheduleConflict error', e);
+      logInteractiveMapIssue('Schedule conflict check failed:', e);
       return false;
     }
   };
@@ -433,7 +438,7 @@ function InteractiveMap() {
             return;
           }
         } catch (err) {
-          console.error('Unregister failed', err);
+          logInteractiveMapIssue('Unregister failed:', err);
           message.error(err?.message || 'Failed to unregister');
           return;
         }
@@ -451,7 +456,7 @@ function InteractiveMap() {
           // notify nav bar to refresh registration count
           try { window.dispatchEvent(new Event('registrations-changed')); } catch { /* ignore */ }
         } catch (err) {
-          console.error('Unregister error', err);
+          logInteractiveMapIssue('Unregister error:', err);
           message.error(err?.message || 'Failed to unregister');
         }
     } finally {
@@ -526,7 +531,7 @@ function InteractiveMap() {
             }
             setScheduleChecked(true);
           } catch {
-            // ignore schedule errors — just mark as checked but unknown
+            // Ignore schedule errors and mark the check as complete but unknown.
             setScheduleChecked(true);
             setScheduleConflict(null);
           }
@@ -642,7 +647,7 @@ function InteractiveMap() {
       setRouteCoordinates(coordinates);
       message.success(`Route to ${dest.name} calculated!`);
     } catch (error) {
-      console.error('Route fetch error:', error);
+      logInteractiveMapIssue('Route fetch error:', error);
       // Fallback: draw straight-line polyline if backend fails
       setRouteCoordinates([[oLat, oLng], [dLat, dLng]]);
       const serverMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
@@ -789,7 +794,7 @@ function InteractiveMap() {
 
                   setFilteredEvents([]);
                 } catch (err) {
-                  console.error('onBuildingSelect handler error', err);
+                  logInteractiveMapIssue('Building selection handler error:', err);
                   setFilteredEvents([]);
                 }
               }}
@@ -854,7 +859,7 @@ function InteractiveMap() {
                 alignItems: 'center',
               }}>
                 <Title level={4} style={{ marginBottom: 0 }}>
-                  📅 Today's Events
+                  Today's Events
                 </Title>
                 <Tag color="blue">{filteredEvents.length} events</Tag>
               </div>
@@ -933,7 +938,7 @@ function InteractiveMap() {
                                   padding: 0,
                                 }}
                               >
-                                View Details →
+                                {'View Details ->'}
                               </Button>
                           </div>
                         </Space>
@@ -1086,7 +1091,7 @@ function InteractiveMap() {
               <div>
                 <div>
                   <Text strong>Starts: </Text>
-                  <Text type="secondary">{getEventDateText(selectedEvent) || '—'}</Text>
+                  <Text type="secondary">{getEventDateText(selectedEvent) || '-'}</Text>
                 </div>
                 {getEventEndDateText(selectedEvent) ? (
                   <div style={{ marginTop: 6 }}>
@@ -1171,7 +1176,7 @@ function InteractiveMap() {
                           setIsAuthenticated(false);
                           message.info('Please log in to register for events');
                         } else {
-                          console.error('Registration error', err);
+                          logInteractiveMapIssue('Registration error:', err);
                           message.error('Could not register for event');
                         }
                       } finally {
