@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Card, message, Typography, Space } from 'antd';
 import { UserOutlined, MailOutlined, LockOutlined, StarFilled } from '@ant-design/icons';
 
@@ -7,6 +7,8 @@ const { Title, Text } = Typography;
 
 const SignUp = () => {
   const [form] = Form.useForm();
+
+  const navigate = useNavigate();
 
   const onFinish = async (values) => {
     try {
@@ -24,7 +26,7 @@ const SignUp = () => {
       }
       message.success('Account created successfully! 🎉 Please log in');
       // navigate after a short delay so the toast is visible
-      setTimeout(() => { window.location.href = '/login'; }, 700);
+      setTimeout(() => { navigate('/login'); }, 700);
     } catch (e) {
       console.error('Signup error', e);
       message.error('Network error during signup');

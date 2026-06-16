@@ -116,26 +116,36 @@ const ClassSchedule = () => {
         setSchedule(data);
         message.success('Successfully added class schedule');
       } else {
-        // Send update to backend and refetch
+        // Persist update to backend: backend exposes POST (create) and DELETE endpoints
+        // (no PUT), so implement update as delete+create for the selected item.
         try {
-          await axios.patch(`http://localhost:8000/class_schedule/${editing.id}`, {
-            course: values.course,
-            name: values.name,
-            days: values.days,
-            time: values.time.map(t => t.format('HH:mm')),
-            dates: values.dates.map(d => d.format('YYYY-MM-DD')),
-          }, { withCredentials: true });
-          const res2 = await axios.get('http://localhost:8000/class_schedule', { withCredentials: true });
-          const data2 = res2.data.map((item, idx) => ({
-            ...item,
-            key: item.id || idx.toString(),
-            dates: item.dates.map(d => dayjs(d)),
-          }));
-          setSchedule(data2);
-          message.success('Successfully modified class schedule');
+          if (!editing || !editing.id) {
+            message.error('No class selected to update');
+          } else {
+            // delete existing
+            await axios.delete(`http://localhost:8000/class_schedule/${editing.id}`, { withCredentials: true });
+            // create new with updated values
+            const newClass = {
+              course: values.course,
+              name: values.name,
+              days: values.days,
+              time: values.time.map(t => t.format('HH:mm')),
+              dates: values.dates.map(d => d.format ? d.format('YYYY-MM-DD') : d),
+            };
+            await axios.post('http://localhost:8000/class_schedule', newClass, { withCredentials: true });
+            // Refetch schedules from backend
+            const res = await axios.get('http://localhost:8000/class_schedule', { withCredentials: true });
+            const data = res.data.map((item, idx) => ({
+              ...item,
+              key: item.id || idx.toString(),
+              dates: item.dates.map(d => dayjs(d)),
+            }));
+            setSchedule(data);
+            message.success('Class updated');
+          }
         } catch (err) {
-          console.error('Failed to update class schedule', err);
-          message.error('Failed to update class schedule');
+          console.error('Failed to update class', err);
+          message.error('Failed to update class. See console for details.');
         }
       }
       setModalOpen(false);

@@ -21,3 +21,11 @@ def get_users_collection():
 # Get or create class_schedule collection
 def get_class_schedule_collection():
     return db['class_schedule']
+
+
+def get_events_collection():
+    return db['events']
+
+
+def get_registrations_collection():
+    return db['registrations']
