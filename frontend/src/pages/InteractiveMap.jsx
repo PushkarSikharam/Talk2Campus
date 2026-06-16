@@ -6,20 +6,25 @@
     and provides directions / routing interaction between panels.
 */
 import React, { useState, useEffect, useRef } from 'react';
-import { Layout, Card, Typography, Input, List, Space, Tag, Button, Empty, Modal, Form, InputNumber, message, Spin, AutoComplete, Divider, Popconfirm } from 'antd';
+import { Layout, Card, Typography, List, Space, Tag, Button, Empty, Modal, Form, InputNumber, message, Spin, Divider, Popconfirm } from 'antd';
 import { EnvironmentOutlined, ClockCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import 'antd/dist/reset.css';
 import Map from '../components/Map';
 import axios from 'axios';
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
 // Ensure cookies are sent for auth-protected endpoints (login cookie)
 axios.defaults.withCredentials = true;
 // make axios use the same backend origin for all relative calls
 axios.defaults.baseURL = API_BASE;
-import { getRouteCoordinates, calculateBounds } from '../services/routeService';
+import { getRouteCoordinates } from '../services/routeService';
 
 const { Sider, Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
+const CAMPUS_FALLBACK_ORIGIN = {
+  lat: 27.7136,
+  lng: -97.3252,
+  label: 'Campus Center',
+};
 
 // (placeholder removed) We'll fetch events from backend
 
@@ -64,7 +69,6 @@ function InteractiveMap() {
   const [isRegistered, setIsRegistered] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registrationId, setRegistrationId] = useState(null);
-  const [classSchedules, setClassSchedules] = useState([]);
   const [scheduleChecked, setScheduleChecked] = useState(false);
   const [scheduleConflict, setScheduleConflict] = useState(null); // { conflict: bool, course?: string, name?: string }
   // null = unknown/pending, true = authenticated, false = not authenticated
@@ -72,6 +76,11 @@ function InteractiveMap() {
   const [unregistering, setUnregistering] = useState(false);
 
   const locationAnnouncedRef = useRef(false);
+  const eventsRef = useRef([]);
+
+  useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
 
   // Load buildings and get geolocation on mount
   useEffect(() => {
@@ -85,6 +94,12 @@ function InteractiveMap() {
     loadBuildings();
     // Disable automatic geolocation for now — require manual From selection
     setHasGeolocation(false);
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setOriginLat(CAMPUS_FALLBACK_ORIGIN.lat);
+      setOriginLng(CAMPUS_FALLBACK_ORIGIN.lng);
+      setHasGeolocation(true);
+      setFromSearchValue(CAMPUS_FALLBACK_ORIGIN.label);
+    }
 
     // Track whether we've already announced automatic detection (uses outer ref)
 
@@ -114,21 +129,34 @@ function InteractiveMap() {
       }
     };
 
+    const onUserLocationError = () => {
+      setOriginLat(CAMPUS_FALLBACK_ORIGIN.lat);
+      setOriginLng(CAMPUS_FALLBACK_ORIGIN.lng);
+      setHasGeolocation(true);
+      setFromSearchValue(CAMPUS_FALLBACK_ORIGIN.label);
+      if (!locationAnnouncedRef.current) {
+        message.warning('Location access is off, so directions will start from Campus Center.');
+        locationAnnouncedRef.current = true;
+      }
+    };
+
     window.addEventListener('user-location-available', onUserLocation);
     window.addEventListener('set-origin-to-user-location', onSetOrigin);
+    window.addEventListener('user-location-error', onUserLocationError);
     // listen for building popup closed to reset right-panel events filter
-    const onBuildingClosed = () => {
-      try {
-        // reset to default events list (today's events)
-        if (Array.isArray(events) && events.length > 0) setFilteredEvents(events);
-        else setFilteredEvents([]);
-      } catch (e) { /* ignore */ }
-    };
+      const onBuildingClosed = () => {
+        try {
+          // reset to default events list (today's events)
+          if (Array.isArray(eventsRef.current) && eventsRef.current.length > 0) setFilteredEvents(eventsRef.current);
+          else setFilteredEvents([]);
+        } catch { /* ignore */ }
+      };
     window.addEventListener('map-building-closed', onBuildingClosed);
     // cleanup
     return () => {
       window.removeEventListener('user-location-available', onUserLocation);
       window.removeEventListener('set-origin-to-user-location', onSetOrigin);
+      window.removeEventListener('user-location-error', onUserLocationError);
       window.removeEventListener('map-building-closed', onBuildingClosed);
     };
   }, []);
@@ -147,7 +175,7 @@ function InteractiveMap() {
           const t = Date.parse(startRaw);
           if (isNaN(t)) return false;
           return t >= threshold;
-        } catch (e) {
+        } catch {
           return false;
         }
       });
@@ -203,14 +231,13 @@ function InteractiveMap() {
   const getEventTitle = (ev) => ev.title || ev.name || ev.displayName || 'Event';
   const getEventLocation = (ev) => ev.location || ev.locationName || ev.venue || ev.place || '';
   const getEventType = (ev) => ev.type || (ev.categories && ev.categories[0]) || 'other';
-  const getEventAttendees = (ev) => ev.attendees || ev.attendance || ev.rsvpCount || ev.attendanceCount || 0;
   const getEventDateText = (ev) => {
     const start = ev.startsOn_dt || ev.startsOn || ev.startDate || ev.start;
     if (!start) return '';
     try {
       const d = new Date(start);
       return d.toLocaleString();
-    } catch (e) {
+    } catch {
       return String(start);
     }
   };
@@ -220,7 +247,7 @@ function InteractiveMap() {
     try {
       const d = new Date(end);
       return d.toLocaleString();
-    } catch (e) {
+    } catch {
       return String(end);
     }
   };
@@ -251,7 +278,7 @@ function InteractiveMap() {
     // Last resort: stringify
     try {
       return JSON.stringify(o);
-    } catch (e) {
+    } catch {
       return String(o);
     }
   };
@@ -355,7 +382,7 @@ function InteractiveMap() {
         const DOMPurify = mod.default || mod;
         const clean = DOMPurify.sanitize(raw, { ALLOWED_TAGS: false });
         if (mounted) setSanitizedDescription(clean || '');
-      } catch (err) {
+      } catch {
         // fallback sanitizer
         if (mounted) setSanitizedDescription(sanitizeFallback(raw));
       }
@@ -422,7 +449,7 @@ function InteractiveMap() {
           setEventModalVisible(false);
           message.success('Unregistered from event');
           // notify nav bar to refresh registration count
-          try { window.dispatchEvent(new Event('registrations-changed')); } catch (e) { /* ignore */ }
+          try { window.dispatchEvent(new Event('registrations-changed')); } catch { /* ignore */ }
         } catch (err) {
           console.error('Unregister error', err);
           message.error(err?.message || 'Failed to unregister');
@@ -452,7 +479,7 @@ function InteractiveMap() {
             setRegistrationId(null);
             return;
           }
-        } catch (authErr) {
+        } catch {
           // /me failed, treat as not authenticated
           setIsAuthenticated(false);
           setIsRegistered(false);
@@ -469,7 +496,7 @@ function InteractiveMap() {
           // If registered, attempt to fetch registration id by listing registrations
           if (registered) {
             try {
-              const regs = await axios.get(`${API_BASE}/registrations`);
+              const regs = await axios.get('/registrations');
               const list = Array.isArray(regs.data) ? regs.data : [];
               const match = list.find(r => {
                 const ev = r.event || {};
@@ -479,7 +506,7 @@ function InteractiveMap() {
                 return false;
               });
               if (match) setRegistrationId(match.registration_id || match.registrationId || match.id || null);
-            } catch (err) {
+            } catch {
               // ignore; registration id optional
             }
           }
@@ -490,7 +517,6 @@ function InteractiveMap() {
             const schedRes = await axios.get('/class_schedule');
             const schedules = Array.isArray(schedRes.data) ? schedRes.data : [];
             if (!mounted) return;
-            setClassSchedules(schedules || []);
             // compute first conflict if any
             const matches = (schedules || []).filter(s => computeScheduleConflict(selectedEvent, s));
             if (matches.length > 0) {
@@ -499,12 +525,12 @@ function InteractiveMap() {
               setScheduleConflict({ conflict: false, matches: [] });
             }
             setScheduleChecked(true);
-          } catch (schErr) {
+          } catch {
             // ignore schedule errors — just mark as checked but unknown
             setScheduleChecked(true);
             setScheduleConflict(null);
           }
-        } catch (err) {
+        } catch {
           if (mounted) setIsRegistered(false);
         }
     };
@@ -654,11 +680,6 @@ function InteractiveMap() {
     }
   };
 
-  const handleClearRoute = () => {
-    setRouteCoordinates(null);
-    message.info('Route cleared');
-  };
-
   return (
     <div className="page-container" style={{ padding: '24px' }}>
       {/* Page Header */}
@@ -743,9 +764,9 @@ function InteractiveMap() {
                         const t = Date.parse(startRaw);
                         if (isNaN(t)) return true;
                         return t >= now;
-                      } catch (e) {
-                        return false;
-                      }
+                        } catch {
+                          return false;
+                        }
                     });
                     setFilteredEvents(matches);
                     return;
@@ -845,7 +866,6 @@ function InteractiveMap() {
                     const title = getEventTitle(event);
                     const location = getEventLocation(event);
                     const type = getEventType(event);
-                    const attendees = getEventAttendees(event);
                     const dateText = getEventDateText(event);
                     const endText = getEventEndDateText(event);
                     const color = eventTypeColors[type] || '#43cea2';
@@ -1144,7 +1164,7 @@ function InteractiveMap() {
                         if (newId) setRegistrationId(newId);
                         message.success('You are registered for this event');
                           // notify nav bar to refresh registration count
-                          try { window.dispatchEvent(new Event('registrations-changed')); } catch (e) { /* ignore */ }
+                          try { window.dispatchEvent(new Event('registrations-changed')); } catch { /* ignore */ }
                       } catch (err) {
                         const status = err?.response?.status;
                         if (status === 401) {

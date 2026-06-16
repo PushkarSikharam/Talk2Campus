@@ -34,11 +34,11 @@ const NavBar = ({ isLoggedIn, handleLogout }) => {
         return;
       }
       try {
-        const res = await axios.get('/registrations', { withCredentials: true, baseURL: 'http://localhost:8000' });
+        const res = await axios.get('/registrations', { withCredentials: true });
         if (!mounted) return;
         const list = Array.isArray(res.data) ? res.data : [];
         setRegCount(list.length);
-      } catch (e) {
+      } catch {
         // on auth error or other error, show 0
         if (mounted) setRegCount(0);
       }

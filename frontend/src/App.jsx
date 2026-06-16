@@ -1,20 +1,17 @@
-// src/App.jsx
-
-import React from 'react';
-import { useState } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Layout, Spin } from 'antd';
 import NavBar from './components/NavBar';
-import InteractiveMap from './pages/InteractiveMap';
-import Home from './pages/Home';
-import AIAgent from './pages/AIAgent';
-import Login from './pages/Login';
-import EditProfile from './pages/EditProfile';
-import EditClassSchedule from './pages/EditClassSchedule';
-import SignUp from './pages/SignUp';
-import RegisteredEvents from './pages/RegisteredEvents';
-import EventsPage from './pages/Events';
-// We need to import Layout a specific way for this structure
-import { Layout } from 'antd';
+
+const Home = lazy(() => import('./pages/Home'));
+const InteractiveMap = lazy(() => import('./pages/InteractiveMap'));
+const AIAgent = lazy(() => import('./pages/AIAgent'));
+const Login = lazy(() => import('./pages/Login'));
+const EditProfile = lazy(() => import('./pages/EditProfile'));
+const EditClassSchedule = lazy(() => import('./pages/EditClassSchedule'));
+const SignUp = lazy(() => import('./pages/SignUp'));
+const RegisteredEvents = lazy(() => import('./pages/RegisteredEvents'));
+const EventsPage = lazy(() => import('./pages/Events'));
 
 const { Header, Content } = Layout;
 
@@ -27,35 +24,41 @@ const App = () => {
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:8000/logout', { method: 'POST', credentials: 'include' });
+      await fetch('/logout', { method: 'POST', credentials: 'include' });
     } catch (e) {
-      // ignore network errors but proceed to clear client state
+      // Ignore network errors and still clear local auth state.
       console.error('Logout request failed', e);
     }
     setIsLoggedIn(false);
   };
 
+  const routeFallback = (
+    <div style={{ minHeight: '50vh', display: 'grid', placeItems: 'center' }}>
+      <Spin size="large" tip="Loading page..." />
+    </div>
+  );
+
   return (
     <Router>
-      {/* This structure is more explicit and prevents the sidebar bug */}      <Layout style={{ minHeight: '100vh', minWidth:'100vw' }}>
-  <Header style={{ background: 'transparent', padding: 0, boxShadow: 'none' }}>
-          {/* We remove the custom padding from Header and let NavBar handle its own width */}
+      <Layout style={{ minHeight: '100vh', minWidth: '100vw' }}>
+        <Header style={{ background: 'transparent', padding: 0, boxShadow: 'none' }}>
           <NavBar isLoggedIn={isLoggedIn} handleLogout={handleLogout} />
         </Header>
-        {/* We wrap the content in a new Layout component */}
         <Layout>
           <Content style={{ padding: '24px 50px' }}>
-            <Routes>
-              <Route path="/interactive-map" element={<InteractiveMap />} />
-              <Route path="/ai-agent" element={<AIAgent />} />
-              <Route path="/login" element={<Login handleLogin={handleLogin} />} />
-              <Route path="/edit-profile" element={<EditProfile />} />
-              <Route path="/edit-class-schedule" element={<EditClassSchedule />} />
-              <Route path="/registered-events" element={<RegisteredEvents />} />
-              <Route path="/events" element={<EventsPage />} />
-              <Route path="/signup" element={<SignUp />} />
-              <Route path="/" element={<Home />} />
-            </Routes>
+            <Suspense fallback={routeFallback}>
+              <Routes>
+                <Route path="/interactive-map" element={<InteractiveMap />} />
+                <Route path="/ai-agent" element={<AIAgent />} />
+                <Route path="/login" element={<Login handleLogin={handleLogin} />} />
+                <Route path="/edit-profile" element={<EditProfile />} />
+                <Route path="/edit-class-schedule" element={<EditClassSchedule />} />
+                <Route path="/registered-events" element={<RegisteredEvents />} />
+                <Route path="/events" element={<EventsPage />} />
+                <Route path="/signup" element={<SignUp />} />
+                <Route path="/" element={<Home />} />
+              </Routes>
+            </Suspense>
           </Content>
         </Layout>
       </Layout>

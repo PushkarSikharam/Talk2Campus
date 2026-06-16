@@ -2,10 +2,16 @@ import logging
 import os
 import re
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import requests
 from pymongo import ASCENDING, MongoClient, UpdateOne
+
+from dotenv import load_dotenv
+
+env_file = Path(__file__).resolve().parent / '.env'
+load_dotenv(env_file)
 
 logger = logging.getLogger(__name__)
 

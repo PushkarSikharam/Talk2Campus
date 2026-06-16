@@ -80,15 +80,15 @@ const EventsPage = () => {
     loadEvents();
   }, []);
 
-  const handleSyncNow = async () => {
+  const handleRefresh = async () => {
     setSyncing(true);
     try {
-      const res = await axios.post('/events/sync');
+      await axios.post('/events/sync');
       await loadEvents();
-      message.success(`Synced ${res?.data?.upserted ?? 0} events and removed ${res?.data?.deleted ?? 0} old ones`);
+      message.success('Events refreshed');
     } catch (err) {
-      console.error('Failed to sync events', err);
-      message.error(err?.response?.data?.detail || 'Could not sync events right now');
+      console.error('Failed to refresh events', err);
+      message.error(err?.response?.data?.detail || 'Could not refresh events right now');
     } finally {
       setSyncing(false);
     }
@@ -178,8 +178,9 @@ const EventsPage = () => {
           <Text type="secondary">Campus events mirrored from TAMUCC Engage with search, filters, and RSVP details.</Text>
         </div>
         <Space wrap>
-          <Button icon={<ReloadOutlined />} onClick={() => loadEvents({ showToast: true })} disabled={loading}>Refresh</Button>
-          <Button type="primary" loading={syncing} onClick={handleSyncNow}>Sync Events Now</Button>
+          <Button type="primary" icon={<ReloadOutlined />} loading={syncing} onClick={handleRefresh} disabled={loading}>
+            Refresh
+          </Button>
         </Space>
       </div>
 
@@ -270,13 +271,13 @@ const EventsPage = () => {
               description={
                 <Space direction="vertical">
                   <Text>No events matched your filters</Text>
-                  <Text type="secondary">Try another search, switch to Upcoming, or run a fresh sync.</Text>
+                  <Text type="secondary">Try another search, switch to Upcoming, or refresh events.</Text>
                 </Space>
               }
             >
               <Space>
                 <Button onClick={() => { setSearchText(''); setSelectedShort(''); setSelectedTime('upcoming'); setSelectedTheme(''); setSelectedOrg(''); }}>Clear Filters</Button>
-                <Button type="primary" loading={syncing} onClick={handleSyncNow}>Sync Again</Button>
+                <Button type="primary" loading={syncing} onClick={handleRefresh}>Refresh</Button>
               </Space>
             </Empty>
           </div>

@@ -24,7 +24,7 @@ const EditProfile = () => {
           payload.currentPassword = values.currentPassword;
           payload.newPassword = values.newPassword;
         }
-        const res = await axios.patch('http://localhost:8000/me', payload, { withCredentials: true });
+        const res = await axios.patch('/me', payload, { withCredentials: true });
         message.success('Profile updated');
         // update form with returned values (phone may be empty)
         const data = res.data || {};
@@ -49,7 +49,7 @@ const EditProfile = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res = await axios.get('http://localhost:8000/me', { withCredentials: true });
+        const res = await axios.get('/me', { withCredentials: true });
         const data = res.data || {};
         // Populate form fields
         form.setFieldsValue({

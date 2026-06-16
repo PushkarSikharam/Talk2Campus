@@ -6,12 +6,8 @@ load_dotenv()
 
 
 def main():
-    result = sync_events()
-    print(
-        f"Synced {result['upserted']} TAMUCC Engage events "
-        f"(fetched {result['fetched']}, deleted {result['deleted']}, "
-        f"lookback {result['lookback_days']} days, retention {result['retention_days']} days)."
-    )
+    sync_events()
+    print('Event refresh complete.')
 
 
 if __name__ == '__main__':

@@ -54,7 +54,7 @@ export const getBuildingsList = async () => {
         // stop on first successful parse
         break;
       }
-    } catch (e) {
+    } catch {
       // try next
     }
   }

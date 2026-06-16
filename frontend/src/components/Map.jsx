@@ -8,7 +8,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Polygon, Tooltip, Popup, useMap, Polyline, CircleMarker, Marker } from 'react-leaflet';
 import { Card, Typography, Space, Button, Tag, AutoComplete, Spin, message } from 'antd';
-import { EnvironmentOutlined, InfoCircleOutlined, DeleteOutlined, DownOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
+import { EnvironmentOutlined, InfoCircleOutlined, DownOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -91,7 +91,7 @@ const RouteAutoZoom = ({ routeCoordinates }) => {
 };
 
 // Custom map controls component: renders persistent location / zoom / reset buttons using the leaflet map instance
-const MapControls = ({ onClearRoute, userLocation }) => {
+const MapControls = ({ userLocation }) => {
   const map = useMap();
 
   const doZoomIn = () => {
@@ -99,7 +99,7 @@ const MapControls = ({ onClearRoute, userLocation }) => {
     try {
       if (typeof map.zoomIn === 'function') map.zoomIn();
       else if (typeof map.getZoom === 'function' && typeof map.setZoom === 'function') map.setZoom(map.getZoom() + 1);
-    } catch (e) {
+    } catch {
       // ignore
     }
   };
@@ -109,7 +109,7 @@ const MapControls = ({ onClearRoute, userLocation }) => {
     try {
       if (typeof map.zoomOut === 'function') map.zoomOut();
       else if (typeof map.getZoom === 'function' && typeof map.setZoom === 'function') map.setZoom(map.getZoom() - 1);
-    } catch (e) {
+    } catch {
       // ignore
     }
   };
@@ -164,7 +164,7 @@ const BuildingsPolygons = ({ events = [], onBuildingSelect = null, directionsPro
           const geojson = typeof dataText === 'string' ? JSON.parse(dataText) : dataText;
           setFeatures(geojson.features || []);
           return;
-        } catch (e) {
+        } catch {
           // try next
         }
       }
@@ -219,7 +219,6 @@ const BuildingsPolygons = ({ events = [], onBuildingSelect = null, directionsPro
                   list = Array.isArray(resp.data) ? resp.data : [];
                 }
                 const now = Date.now();
-                const bn = String(buildingName || '').toLowerCase();
                 const eventsHere = (Array.isArray(list) ? list : []).filter(ev => {
                   try {
                     const props = ev.properties || {};
@@ -270,7 +269,7 @@ const BuildingsPolygons = ({ events = [], onBuildingSelect = null, directionsPro
                     });
 
                     return fieldMatches;
-                  } catch (e) {
+                  } catch {
                     return false;
                   }
                 }).filter(ev => {
@@ -288,7 +287,7 @@ const BuildingsPolygons = ({ events = [], onBuildingSelect = null, directionsPro
                 const shortName = shortNameRaw ? String(shortNameRaw).toLowerCase().trim() : null;
                 if (onBuildingSelect) onBuildingSelect(buildingName, eventsHere, shortName);
                 else window.dispatchEvent(new CustomEvent('map-building-events', { detail: { name: buildingName, events: eventsHere, shortName } }));
-              } catch (e) {
+              } catch {
                 // ignore
               }
             }
@@ -301,7 +300,7 @@ const BuildingsPolygons = ({ events = [], onBuildingSelect = null, directionsPro
           <Popup offset={[0, 14]} className="building-popup" onClose={() => {
             try {
               window.dispatchEvent(new Event('map-building-closed'));
-            } catch (e) { /* ignore */ }
+            } catch { /* ignore */ }
           }}>
             <div className="building-popup-content">
               <div className="building-popup-header">
@@ -337,7 +336,7 @@ const BuildingsPolygons = ({ events = [], onBuildingSelect = null, directionsPro
                         // Fallback: dispatch a window event that InteractiveMap can listen to
                         window.dispatchEvent(new CustomEvent('map-get-directions', { detail: { name: buildingName, feature } }));
                       }
-                    } catch (e) {
+                    } catch {
                       // ignore
                     }
                   }}
@@ -354,13 +353,22 @@ const BuildingsPolygons = ({ events = [], onBuildingSelect = null, directionsPro
   });
 };
 
-const Map = ({ routeCoordinates, onRouteChange, directionsProps = null, events = [], onBuildingSelect = null }) => {
+const Map = ({ routeCoordinates, directionsProps = null, events = [], onBuildingSelect = null }) => {
   const [userLocation, setUserLocation] = useState(null);
-  const [locationError, setLocationError] = useState(null);
   const [animPosition, setAnimPosition] = useState(null);
   const animRef = React.useRef({ raf: null, startTime: null, start: null, end: null, duration: 800 });
+  const userLocationRef = useRef(null);
+  const animPositionRef = useRef(null);
   const [legendCollapsed, setLegendCollapsed] = useState(false);
   const mapRef = useRef(null);
+
+  useEffect(() => {
+    userLocationRef.current = userLocation;
+  }, [userLocation]);
+
+  useEffect(() => {
+    animPositionRef.current = animPosition;
+  }, [animPosition]);
 
 
   // Auto-collapse legend when a route is active (navigation on)
@@ -371,12 +379,6 @@ const Map = ({ routeCoordinates, onRouteChange, directionsProps = null, events =
       setLegendCollapsed(false);
     }
   }, [routeCoordinates]);
-
-  const handleRouteUpdate = (coords) => {
-    if (onRouteChange) {
-      onRouteChange(coords);
-    }
-  };
 
   // Request current position once on mount. If permission granted, store and dispatch event.
   useEffect(() => {
@@ -392,7 +394,7 @@ const Map = ({ routeCoordinates, onRouteChange, directionsProps = null, events =
           const accuracy = pos.coords.accuracy;
           const loc = { lat, lng, accuracy };
           // Animate marker from previous to new location for smooth motion
-          const prev = animPosition || userLocation;
+          const prev = animPositionRef.current || userLocationRef.current;
           setUserLocation(loc);
           window.dispatchEvent(new CustomEvent('user-location-available', { detail: loc }));
           // start animation only if we have a previous position
@@ -426,7 +428,11 @@ const Map = ({ routeCoordinates, onRouteChange, directionsProps = null, events =
         },
         (err) => {
           if (!mounted) return;
-          setLocationError(err && err.message ? err.message : String(err));
+          window.dispatchEvent(
+            new CustomEvent('user-location-error', {
+              detail: { message: err && err.message ? err.message : String(err) },
+            })
+          );
         },
         { enableHighAccuracy: true, maximumAge: 5_000 }
       );
@@ -558,7 +564,7 @@ const Map = ({ routeCoordinates, onRouteChange, directionsProps = null, events =
         
         <RouteAutoZoom routeCoordinates={routeCoordinates} />
         <BuildingsPolygons directionsProps={directionsProps} events={events} onBuildingSelect={onBuildingSelect} />
-        <MapControls onClearRoute={() => handleRouteUpdate(null)} userLocation={userLocation} />
+        <MapControls userLocation={userLocation} />
       </MapContainer>
 
       {/* In-map Directions Card (moved from sidebar) - always visible */}
@@ -583,7 +589,7 @@ const Map = ({ routeCoordinates, onRouteChange, directionsProps = null, events =
                     filterOption={false}
                     allowClear
                     dropdownStyle={{ zIndex: 3000 }}
-                    getPopupContainer={(triggerNode) => document.body}
+                    getPopupContainer={() => document.body}
                   />
                 </div>
               )}
@@ -604,7 +610,7 @@ const Map = ({ routeCoordinates, onRouteChange, directionsProps = null, events =
                       filterOption={false}
                       allowClear
                       dropdownStyle={{ zIndex: 3000 }}
-                      getPopupContainer={(triggerNode) => document.body}
+                      getPopupContainer={() => document.body}
                     />
                   </Spin>
                 </div>

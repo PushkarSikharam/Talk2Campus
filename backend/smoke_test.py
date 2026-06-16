@@ -1,6 +1,8 @@
+import os
+
 import requests
 
-BASE = 'http://127.0.0.1:8000'
+BASE = os.getenv('BACKEND_BASE_URL', 'http://127.0.0.1:8000').rstrip('/')
 
 def signup():
     resp = requests.post(f'{BASE}/signup', json={'name':'Smoke','email':'smoke@example.com','password':'smokepass'})

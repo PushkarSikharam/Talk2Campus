@@ -13,7 +13,7 @@ const Login = ({ handleLogin }) => {
 
   const onFinish = async (values) => {
     try {
-      const resp = await fetch('http://localhost:8000/login', {
+      const resp = await fetch('/login', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

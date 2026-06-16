@@ -3,6 +3,7 @@ import os
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import requests
 from bson.objectid import ObjectId
@@ -23,19 +24,34 @@ from .db import (
 from .event_sync import sync_events
 from .models import ClassScheduleIn, ClassScheduleOut, LoginIn, UserIn, UserOut
 
-load_dotenv()
+env_file = Path(__file__).resolve().parent / '.env'
+load_dotenv(env_file)
 
 app = FastAPI(title='Talk2Campus Backend')
 logger = logging.getLogger(__name__)
+
+
+def _parse_csv_env(name: str, default: str = '') -> List[str]:
+    raw_value = os.getenv(name, default)
+    return [item.strip() for item in raw_value.split(',') if item.strip()]
+
+
+def _parse_bool_env(name: str, default: str = 'false') -> bool:
+    return os.getenv(name, default).strip().lower() in {'1', 'true', 'yes', 'on'}
+
 
 OPENROUTESERVICE_API_KEY = os.getenv('OPENROUTESERVICE_API_KEY', '')
 OPENROUTESERVICE_BASE_URL = os.getenv('OPENROUTESERVICE_BASE_URL', 'https://api.openrouteservice.org')
 EVENT_SYNC_ENABLED = os.getenv('EVENT_SYNC_ENABLED', 'true').lower() == 'true'
 EVENT_SYNC_INTERVAL_MINUTES = max(int(os.getenv('EVENT_SYNC_INTERVAL_MINUTES', '180')), 5)
+CORS_ORIGINS = _parse_csv_env('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173,http://localhost:5174')
+COOKIE_SECURE = _parse_bool_env('COOKIE_SECURE', 'false')
+COOKIE_SAMESITE = os.getenv('COOKIE_SAMESITE', 'lax').strip().lower()
+COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', '').strip() or None
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
@@ -50,8 +66,8 @@ async def background_event_sync_loop():
     logger.info('Background event sync started. Interval=%s minutes.', EVENT_SYNC_INTERVAL_MINUTES)
     while True:
         try:
-            result = await asyncio.to_thread(sync_events)
-            logger.info('Background event sync complete: %s', result)
+            await asyncio.to_thread(sync_events)
+            logger.info('Background event refresh complete.')
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -225,8 +241,9 @@ async def login(form_data: LoginIn, response: Response):
         key='access_token',
         value=token,
         httponly=True,
-        samesite='strict',
-        secure=False,
+        samesite=COOKIE_SAMESITE,
+        secure=COOKIE_SECURE,
+        domain=COOKIE_DOMAIN,
         max_age=60 * 60,
     )
     return {'detail': 'login successful'}
@@ -234,9 +251,26 @@ async def login(form_data: LoginIn, response: Response):
 
 @app.post('/logout')
 async def logout(response: Response):
-    response.delete_cookie(key='access_token')
-    response.set_cookie(key='access_token', value='', httponly=True, samesite='lax', secure=False, max_age=0)
+    response.delete_cookie(key='access_token', domain=COOKIE_DOMAIN)
+    response.set_cookie(
+        key='access_token',
+        value='',
+        httponly=True,
+        samesite=COOKIE_SAMESITE,
+        secure=COOKIE_SECURE,
+        domain=COOKIE_DOMAIN,
+        max_age=0,
+    )
     return {'detail': 'logged out'}
+
+
+@app.get('/health')
+async def health():
+    return {
+        'status': 'ok',
+        'eventSyncEnabled': EVENT_SYNC_ENABLED,
+        'corsOrigins': CORS_ORIGINS,
+    }
 
 
 @app.get('/me')

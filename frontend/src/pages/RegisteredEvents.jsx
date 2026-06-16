@@ -8,18 +8,7 @@ import { List, Card, Typography, Spin, Empty, Button, Modal, Divider, Space, Pop
 
 const { Title, Paragraph, Text } = Typography;
 
-const API_BASE = 'http://localhost:8000';
-
-const formatDate = (v) => {
-	try {
-		if (!v) return '';
-		const d = new Date(v);
-		if (isNaN(d)) return String(v);
-		return d.toLocaleString();
-	} catch (e) {
-		return String(v);
-	}
-};
+const API_BASE = '';
 
 const extractDescription = (event) => {
 	if (!event) return '';
@@ -69,7 +58,6 @@ const extractLocation = (event) => {
 };
 
 // Helpers mirroring InteractiveMap formatting
-const getEventTitle = (ev) => ev?.title || ev?.name || ev?.displayName || 'Event';
 const getEventOrganizations = (ev) => {
 	if (!ev) return [];
 	if (ev.organizationNames && Array.isArray(ev.organizationNames)) return ev.organizationNames;
@@ -89,7 +77,7 @@ const getOrgDisplayName = (o) => {
 	if (o.displayName) return o.displayName;
 	if (o.orgName) return o.orgName;
 	if (o.title) return o.title;
-	try { return JSON.stringify(o); } catch (e) { return String(o); }
+	try { return JSON.stringify(o); } catch { return String(o); }
 };
 
 const eventTypeColors = {
@@ -107,7 +95,7 @@ const getEventDateText = (ev) => {
 	try {
 		const d = new Date(start);
 		return d.toLocaleString();
-	} catch (e) {
+	} catch {
 		return String(start);
 	}
 };
@@ -117,7 +105,7 @@ const getEventEndDateText = (ev) => {
 	try {
 		const d = new Date(end);
 		return d.toLocaleString();
-	} catch (e) {
+	} catch {
 		return String(end);
 	}
 };
@@ -130,8 +118,6 @@ const computeCountdown = (start) => {
 	const now = new Date();
 	const ms = s.getTime() - now.getTime();
 	const absMs = Math.abs(ms);
-	const sign = ms >= 0 ? 1 : -1;
-
 	const days = Math.floor(absMs / (1000 * 60 * 60 * 24));
 	const hours = Math.floor((absMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
 	const minutes = Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -176,7 +162,7 @@ const useSanitizedDescription = (raw) => {
 				const DOMPurify = mod.default || mod;
 				const clean = DOMPurify.sanitize(raw, { ALLOWED_TAGS: false });
 				if (mounted) setSanitized(clean || '');
-			} catch (err) {
+			} catch {
 				if (mounted) setSanitized(sanitizeFallback(raw));
 			}
 		};
@@ -196,7 +182,7 @@ const RegisteredEvents = () => {
 	const [isAuthenticated, setIsAuthenticated] = useState(null);
 
 	// now ticks to keep countdowns fresh
-	const [nowTick, setNowTick] = useState(Date.now());
+	const [, setNowTick] = useState(Date.now());
 	useEffect(() => {
 		const id = setInterval(() => setNowTick(Date.now()), 30 * 1000); // update every 30s
 		return () => clearInterval(id);
@@ -249,7 +235,7 @@ const RegisteredEvents = () => {
 				} else {
 					setIsAuthenticated(false);
 				}
-			} catch (err) {
+			} catch {
 				if (!mounted) return;
 				setIsAuthenticated(false);
 			}

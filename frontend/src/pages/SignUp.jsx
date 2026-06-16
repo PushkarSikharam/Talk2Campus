@@ -12,7 +12,7 @@ const SignUp = () => {
 
   const onFinish = async (values) => {
     try {
-      const resp = await fetch('http://localhost:8000/signup', {
+      const resp = await fetch('/signup', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

@@ -12,18 +12,19 @@ const daysOptions = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 
 const ClassSchedule = () => {
   const [schedule, setSchedule] = useState([]);
+  const loadSchedules = async () => {
+    const res = await axios.get('/class_schedule', { withCredentials: true });
+    return res.data.map((item, idx) => ({
+      ...item,
+      key: item.id || idx.toString(),
+      dates: item.dates.map((d) => dayjs(d)),
+    }));
+  };
   // Fetch schedules from backend
   React.useEffect(() => {
     const fetchSchedules = async () => {
       try {
-  const res = await axios.get('http://localhost:8000/class_schedule', { withCredentials: true });
-        // Convert dates to dayjs objects for display
-        const data = res.data.map((item, idx) => ({
-          ...item,
-          key: item.id || idx.toString(),
-          dates: item.dates.map(d => dayjs(d)),
-        }));
-        setSchedule(data);
+        setSchedule(await loadSchedules());
       } catch (err) {
         console.error('Failed to fetch schedules', err);
       }
@@ -60,15 +61,8 @@ const ClassSchedule = () => {
       cancelText: 'Cancel',
       onOk: async () => {
         try {
-          await axios.delete(`http://localhost:8000/class_schedule/${editing.id}`, { withCredentials: true });
-          // Refetch schedules from backend
-          const res = await axios.get('http://localhost:8000/class_schedule', { withCredentials: true });
-          const data = res.data.map((item, idx) => ({
-            ...item,
-            key: item.id || idx.toString(),
-            dates: item.dates.map(d => dayjs(d)),
-          }));
-          setSchedule(data);
+          await axios.delete(`/class_schedule/${editing.id}`, { withCredentials: true });
+          setSchedule(await loadSchedules());
           setModalOpen(false);
           setEditing(null);
           setIsAdd(false);
@@ -99,21 +93,14 @@ const ClassSchedule = () => {
           dates: values.dates.map(d => d.format('YYYY-MM-DD')),
         };
         // Send to backend
-        await axios.post('http://localhost:8000/class_schedule', {
+        await axios.post('/class_schedule', {
           course: newClass.course,
           name: newClass.name,
           days: newClass.days,
           time: newClass.time,
           dates: newClass.dates,
         }, { withCredentials: true });
-        // Refetch from backend
-  const res = await axios.get('http://localhost:8000/class_schedule', { withCredentials: true });
-        const data = res.data.map((item, idx) => ({
-          ...item,
-          key: item.id || idx.toString(),
-          dates: item.dates.map(d => dayjs(d)),
-        }));
-        setSchedule(data);
+        setSchedule(await loadSchedules());
         message.success('Successfully added class schedule');
       } else {
         // Persist update to backend: backend exposes POST (create) and DELETE endpoints
@@ -123,7 +110,7 @@ const ClassSchedule = () => {
             message.error('No class selected to update');
           } else {
             // delete existing
-            await axios.delete(`http://localhost:8000/class_schedule/${editing.id}`, { withCredentials: true });
+            await axios.delete(`/class_schedule/${editing.id}`, { withCredentials: true });
             // create new with updated values
             const newClass = {
               course: values.course,
@@ -132,15 +119,8 @@ const ClassSchedule = () => {
               time: values.time.map(t => t.format('HH:mm')),
               dates: values.dates.map(d => d.format ? d.format('YYYY-MM-DD') : d),
             };
-            await axios.post('http://localhost:8000/class_schedule', newClass, { withCredentials: true });
-            // Refetch schedules from backend
-            const res = await axios.get('http://localhost:8000/class_schedule', { withCredentials: true });
-            const data = res.data.map((item, idx) => ({
-              ...item,
-              key: item.id || idx.toString(),
-              dates: item.dates.map(d => dayjs(d)),
-            }));
-            setSchedule(data);
+            await axios.post('/class_schedule', newClass, { withCredentials: true });
+            setSchedule(await loadSchedules());
             message.success('Class updated');
           }
         } catch (err) {
