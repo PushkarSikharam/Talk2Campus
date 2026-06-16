@@ -1,38 +1,83 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional
 import os
-from fastapi import FastAPI, HTTPException, Depends, status, Header, Request, Response, Cookie
-from fastapi.responses import JSONResponse
+import asyncio
+import logging
+from datetime import datetime, timedelta, timezone
+
+import requests
+from bson.objectid import ObjectId
+from dotenv import load_dotenv
+from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from dotenv import load_dotenv
-from bson.objectid import ObjectId
-import googlemaps
 
-from .db import get_users_collection, get_class_schedule_collection, get_events_collection, get_registrations_collection
-from .models import UserIn, UserOut, UserInDB, LoginIn, ClassScheduleIn, ClassScheduleOut
-from .auth import hash_password, verify_password, create_access_token, decode_access_token
+from .auth import create_access_token, decode_access_token, hash_password, verify_password
+from .db import (
+    get_class_schedule_collection,
+    get_events_collection,
+    get_registrations_collection,
+    get_users_collection,
+)
+from .event_sync import sync_events
+from .models import ClassScheduleIn, ClassScheduleOut, LoginIn, UserIn, UserOut
 
 load_dotenv()
 
 app = FastAPI(title='Talk2Campus Backend')
+logger = logging.getLogger(__name__)
 
-# Initialize Google Maps client (requires GOOGLE_MAPS_API_KEY in .env)
-GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', '')
-gmaps_client = googlemaps.Client(key=GOOGLE_MAPS_API_KEY) if GOOGLE_MAPS_API_KEY else None
+OPENROUTESERVICE_API_KEY = os.getenv('OPENROUTESERVICE_API_KEY', '')
+OPENROUTESERVICE_BASE_URL = os.getenv('OPENROUTESERVICE_BASE_URL', 'https://api.openrouteservice.org')
+EVENT_SYNC_ENABLED = os.getenv('EVENT_SYNC_ENABLED', 'true').lower() == 'true'
+EVENT_SYNC_INTERVAL_MINUTES = max(int(os.getenv('EVENT_SYNC_INTERVAL_MINUTES', '180')), 5)
 
-# Allow dev frontend origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:5174"],
+    allow_origins=['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=['*'],
+    allow_headers=['*'],
 )
-
 
 users = get_users_collection()
 class_schedule = get_class_schedule_collection()
+
+
+async def background_event_sync_loop():
+    interval_seconds = EVENT_SYNC_INTERVAL_MINUTES * 60
+    logger.info('Background event sync started. Interval=%s minutes.', EVENT_SYNC_INTERVAL_MINUTES)
+    while True:
+        try:
+            result = await asyncio.to_thread(sync_events)
+            logger.info('Background event sync complete: %s', result)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception('Background event sync failed.')
+        await asyncio.sleep(interval_seconds)
+
+
+@app.on_event('startup')
+async def startup_event():
+    if EVENT_SYNC_ENABLED:
+        app.state.event_sync_task = asyncio.create_task(background_event_sync_loop())
+    else:
+        app.state.event_sync_task = None
+
+
+@app.on_event('shutdown')
+async def shutdown_event():
+    task = getattr(app.state, 'event_sync_task', None)
+    if task:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
 def get_current_user(authorization: str = Header(None), access_token: str = Cookie(None)):
     token = None
     if authorization:
@@ -44,68 +89,63 @@ def get_current_user(authorization: str = Header(None), access_token: str = Cook
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Missing authorization')
     try:
-        payload = decode_access_token(token)
+        return decode_access_token(token)
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token')
-    return payload
+
+
 @app.post('/class_schedule', response_model=ClassScheduleOut)
 async def add_class_schedule(data: ClassScheduleIn, payload: dict = Depends(get_current_user)):
-    # Insert new class schedule, associate with current user
     user_id = payload.get('sub')
     doc = data.dict()
     doc['owner_id'] = user_id
-    # Convert date objects to ISO strings because PyMongo/BSON does not accept plain datetime.date
     try:
         if 'dates' in doc and isinstance(doc['dates'], list):
             doc['dates'] = [d.isoformat() if hasattr(d, 'isoformat') else d for d in doc['dates']]
     except Exception:
-        # fallback: leave as-is
         pass
     res = await class_schedule.insert_one(doc)
-    # Return stored document with id
     return ClassScheduleOut(id=str(res.inserted_id), **doc)
 
 
 @app.get('/class_schedule', response_model=List[ClassScheduleOut])
 async def get_class_schedules(payload: dict = Depends(get_current_user)):
-    # Return only schedules owned by current user
     user_id = payload.get('sub')
     docs = await class_schedule.find({'owner_id': user_id}).to_list(length=100)
-    # Convert MongoDB _id to id string
-    return [ClassScheduleOut(id=str(doc['_id']),
-                             owner_id=doc.get('owner_id'),
-                             course=doc['course'],
-                             name=doc['name'],
-                             days=doc['days'],
-                             time=doc['time'],
-                             dates=doc['dates']) for doc in docs]
+    return [
+        ClassScheduleOut(
+            id=str(doc['_id']),
+            owner_id=doc.get('owner_id'),
+            course=doc['course'],
+            name=doc['name'],
+            days=doc['days'],
+            time=doc['time'],
+            dates=doc['dates'],
+        )
+        for doc in docs
+    ]
 
 
 @app.delete('/class_schedule/{id}')
 async def delete_class_schedule(id: str, payload: dict = Depends(get_current_user)):
-    """Delete a class schedule owned by the current user."""
     user_id = payload.get('sub')
     try:
         res = await class_schedule.delete_one({'_id': ObjectId(id), 'owner_id': user_id})
     except Exception:
-        # invalid id format or other error
         raise HTTPException(status_code=400, detail='Invalid id')
     if res.deleted_count == 0:
-        # Not found or not owned by user
         raise HTTPException(status_code=404, detail='Not found or not owner')
-    return JSONResponse(status_code=200, content={"detail": "deleted"})
+    return JSONResponse(status_code=200, content={'detail': 'deleted'})
 
 
 @app.patch('/class_schedule/{id}', response_model=ClassScheduleOut)
 async def update_class_schedule(id: str, data: ClassScheduleIn, payload: dict = Depends(get_current_user)):
-    """Update a class schedule owned by the current user."""
     user_id = payload.get('sub')
     try:
         obj_id = ObjectId(id)
     except Exception:
         raise HTTPException(status_code=400, detail='Invalid id')
 
-    # prepare update document: convert dates to ISO strings if present
     doc = data.dict()
     try:
         if 'dates' in doc and isinstance(doc['dates'], list):
@@ -118,17 +158,15 @@ async def update_class_schedule(id: str, data: ClassScheduleIn, payload: dict = 
         raise HTTPException(status_code=404, detail='Not found or not owner')
 
     new_doc = await class_schedule.find_one({'_id': obj_id})
-    return ClassScheduleOut(id=str(new_doc.get('_id')),
-                             owner_id=new_doc.get('owner_id'),
-                             course=new_doc.get('course'),
-                             name=new_doc.get('name'),
-                             days=new_doc.get('days'),
-                             time=new_doc.get('time'),
-                             dates=new_doc.get('dates'))
-
-class TokenResp(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+    return ClassScheduleOut(
+        id=str(new_doc.get('_id')),
+        owner_id=new_doc.get('owner_id'),
+        course=new_doc.get('course'),
+        name=new_doc.get('name'),
+        days=new_doc.get('days'),
+        time=new_doc.get('time'),
+        dates=new_doc.get('dates'),
+    )
 
 
 class UpdateProfile(BaseModel):
@@ -138,78 +176,68 @@ class UpdateProfile(BaseModel):
     currentPassword: Optional[str] = None
     newPassword: Optional[str] = None
 
+
 @app.post('/signup', response_model=UserOut)
 async def signup(user: UserIn):
-    # check existing
-    existing = await users.find_one({"email": user.email})
+    existing = await users.find_one({'email': user.email})
     if existing:
         raise HTTPException(status_code=400, detail='Email already registered')
 
     try:
         hashed = hash_password(user.password)
     except Exception as e:
-        # Hashing issues -> return client error
         raise HTTPException(status_code=400, detail=f'Password hashing failed: {e}')
-    doc = {"name": user.name, "email": user.email, "hashed_password": hashed}
+    doc = {'name': user.name, 'email': user.email, 'hashed_password': hashed}
     res = await users.insert_one(doc)
     return UserOut(id=str(res.inserted_id), name=user.name, email=user.email)
 
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    # ensure JSON response for HTTPException
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    return JSONResponse(status_code=exc.status_code, content={'detail': exc.detail})
 
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
-    # log error and return JSON
-    import traceback, logging
     logging.getLogger('uvicorn.error').exception('Unhandled exception')
-    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+    return JSONResponse(status_code=500, content={'detail': 'Internal server error'})
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    # Return a simplified validation error message without echoing request body
-    return JSONResponse(status_code=422, content={"detail": "Invalid request data"})
+    return JSONResponse(status_code=422, content={'detail': 'Invalid request data'})
+
 
 @app.post('/login')
 async def login(form_data: LoginIn, response: Response):
-    # Using same model with email/password for simplicity
-    user = await users.find_one({"email": form_data.email})
+    user = await users.find_one({'email': form_data.email})
     if not user:
         raise HTTPException(status_code=401, detail='Invalid credentials')
-    # verify password
     try:
         ok = verify_password(form_data.password, user.get('hashed_password'))
     except Exception:
-        # Do not leak error details
         raise HTTPException(status_code=500, detail='Error during password verification')
     if not ok:
         raise HTTPException(status_code=401, detail='Invalid credentials')
 
-    token = create_access_token({"sub": str(user.get('_id')), "email": user.get('email')})
-    # set httpOnly cookie
+    token = create_access_token({'sub': str(user.get('_id')), 'email': user.get('email')})
     response.set_cookie(
-        key="access_token",
+        key='access_token',
         value=token,
         httponly=True,
-        samesite="lax",
-        secure=False,  # set True in production with HTTPS
+        samesite='strict',
+        secure=False,
         max_age=60 * 60,
     )
-    return {"detail": "login successful"}
+    return {'detail': 'login successful'}
 
 
 @app.post('/logout')
 async def logout(response: Response):
-    """Clear the auth cookie to log the user out."""
-    # Clear cookie by setting it to empty and expiring it immediately
     response.delete_cookie(key='access_token')
-    # Also set an expired cookie for clients that observe Set-Cookie attributes explicitly
     response.set_cookie(key='access_token', value='', httponly=True, samesite='lax', secure=False, max_age=0)
-    return {"detail": "logged out"}
+    return {'detail': 'logged out'}
+
 
 @app.get('/me')
 async def me(payload: dict = Depends(get_current_user)):
@@ -217,14 +245,11 @@ async def me(payload: dict = Depends(get_current_user)):
     user = await users.find_one({'_id': ObjectId(user_id)})
     if not user:
         raise HTTPException(status_code=404, detail='User not found')
-    return {"id": str(user.get('_id')), "name": user.get('name'), "email": user.get('email'), "phone": user.get('phone')}
+    return {'id': str(user.get('_id')), 'name': user.get('name'), 'email': user.get('email'), 'phone': user.get('phone')}
 
 
 @app.patch('/me')
 async def update_me(data: UpdateProfile, payload: dict = Depends(get_current_user)):
-    """Update current user's profile. Password change is optional; if provided,
-    currentPassword must match the existing password and newPassword will replace it.
-    """
     user_id = payload.get('sub')
     user = await users.find_one({'_id': ObjectId(user_id)})
     if not user:
@@ -238,9 +263,7 @@ async def update_me(data: UpdateProfile, payload: dict = Depends(get_current_use
     if data.phone is not None:
         updates['phone'] = data.phone
 
-    # Handle password change if requested
     if data.newPassword is not None or data.currentPassword is not None:
-        # both must be present
         if not data.currentPassword or not data.newPassword:
             raise HTTPException(status_code=400, detail='Both currentPassword and newPassword are required to change password')
         try:
@@ -249,7 +272,6 @@ async def update_me(data: UpdateProfile, payload: dict = Depends(get_current_use
             raise HTTPException(status_code=500, detail='Error verifying password')
         if not ok:
             raise HTTPException(status_code=401, detail='Current password incorrect')
-        # set new hashed password
         try:
             updates['hashed_password'] = hash_password(data.newPassword)
         except Exception:
@@ -258,66 +280,61 @@ async def update_me(data: UpdateProfile, payload: dict = Depends(get_current_use
     if updates:
         await users.update_one({'_id': ObjectId(user_id)}, {'$set': updates})
 
-    # Return updated public fields
     new_user = await users.find_one({'_id': ObjectId(user_id)})
-    return {"id": str(new_user.get('_id')), "name": new_user.get('name'), "email": new_user.get('email'), "phone": new_user.get('phone')}
+    return {'id': str(new_user.get('_id')), 'name': new_user.get('name'), 'email': new_user.get('email'), 'phone': new_user.get('phone')}
 
 
 @app.get('/route')
 async def get_route(oLat: float, oLng: float, dLat: float, dLng: float, mode: str = 'driving'):
-    """
-    Get the encoded polyline for a route between two coordinates using Google Maps Directions API.
-    
-    Query Parameters:
-    - oLat: Origin latitude
-    - oLng: Origin longitude
-    - dLat: Destination latitude
-    - dLng: Destination longitude
-    - mode: Travel mode ('driving', 'walking', 'transit', 'bicycling') - defaults to 'driving'
-    
-    Returns:
-    - polyline: Encoded polyline string representing the route
-    """
-    if not gmaps_client:
-        raise HTTPException(
-            status_code=500,
-            detail='Google Maps API key not configured. Set GOOGLE_MAPS_API_KEY in .env'
-        )
-    
-    # Validate mode parameter
-    valid_modes = ['driving', 'walking', 'transit', 'bicycling']
-    if mode not in valid_modes:
-        raise HTTPException(status_code=400, detail=f'Invalid mode. Must be one of: {", ".join(valid_modes)}')
-    
+    if not OPENROUTESERVICE_API_KEY:
+        raise HTTPException(status_code=500, detail='OpenRouteService API key not configured. Set OPENROUTESERVICE_API_KEY in .env')
+
+    profile_map = {
+        'driving': 'driving-car',
+        'walking': 'foot-walking',
+        'bicycling': 'cycling-regular',
+    }
+    if mode == 'transit':
+        raise HTTPException(status_code=400, detail='Transit mode is not supported by OpenRouteService')
+    profile = profile_map.get(mode)
+    if not profile:
+        raise HTTPException(status_code=400, detail=f'Invalid mode. Must be one of: {", ".join(profile_map.keys())}')
+
     try:
-        # Validate coordinates
         if not (-90 <= oLat <= 90 and -180 <= oLng <= 180):
             raise HTTPException(status_code=400, detail='Invalid origin coordinates')
         if not (-90 <= dLat <= 90 and -180 <= dLng <= 180):
             raise HTTPException(status_code=400, detail='Invalid destination coordinates')
-        
-        # Call Google Maps Directions API
-        origin = (oLat, oLng)
-        destination = (dLat, dLng)
 
-        directions_result = gmaps_client.directions(
-            origin=origin,
-            destination=destination,
-            mode=mode,
-            alternatives=False
+        response = requests.post(
+            f'{OPENROUTESERVICE_BASE_URL}/v2/directions/{profile}/geojson',
+            headers={'Authorization': OPENROUTESERVICE_API_KEY, 'Content-Type': 'application/json'},
+            json={'coordinates': [[oLng, oLat], [dLng, dLat]], 'instructions': False},
+            timeout=20,
         )
-        
-        if not directions_result or len(directions_result) == 0:
+        if response.status_code in (401, 403):
+            raise HTTPException(status_code=500, detail='OpenRouteService request was denied. Check the API key and project limits.')
+        if response.status_code == 429:
+            raise HTTPException(status_code=429, detail='OpenRouteService rate limit exceeded. Please try again in a moment.')
+        if not response.ok:
+            try:
+                payload = response.json()
+                detail = payload.get('error') or payload.get('message') or str(payload)
+            except Exception:
+                detail = response.text or f'HTTP {response.status_code}'
+            raise HTTPException(status_code=500, detail=f'OpenRouteService API error: {detail}')
+
+        route_result = response.json()
+        features = route_result.get('features') or []
+        if not features:
             raise HTTPException(status_code=404, detail='No route found between origin and destination')
-        
-        # Extract the polyline from the first route
-        route = directions_result[0]
-        polyline = route['overview_polyline']['points']
-        
-        return {"polyline": polyline}
-    
-    except googlemaps.exceptions.ApiError as e:
-        raise HTTPException(status_code=500, detail=f'Google Maps API error: {str(e)}')
+
+        geometry = (features[0].get('geometry') or {}).get('coordinates') or []
+        if not geometry:
+            raise HTTPException(status_code=404, detail='Route geometry was not returned by OpenRouteService')
+
+        coordinates = [[lat, lng] for lng, lat in geometry]
+        return {'coordinates': coordinates}
     except HTTPException:
         raise
     except Exception as e:
@@ -325,79 +342,122 @@ async def get_route(oLat: float, oLng: float, dLat: float, dLng: float, mode: st
 
 
 @app.get('/events')
-async def get_events(limit: int = 6, when: Optional[str] = None):
-    """Return events. By default returns upcoming events whose end time is after now.
-    If `when=today` is provided, returns events that occur any time during the current UTC day.
-    Limit defaults to 6.
-    """
+async def get_events(
+    limit: int = 6,
+    when: Optional[str] = None,
+    q: Optional[str] = None,
+    category: Optional[str] = None,
+    organization: Optional[str] = None,
+    location: Optional[str] = None,
+):
     try:
         events_col = get_events_collection()
     except Exception:
         raise HTTPException(status_code=500, detail='Events collection not available')
 
-    from datetime import datetime, timezone
-
     now = datetime.now(timezone.utc)
 
-    # Build query depending on `when` parameter
-    if when and when.lower() == 'today':
-        # UTC day boundaries
-        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        from datetime import timedelta
-        day_end = day_start + timedelta(days=1)
+    try:
+        if await events_col.count_documents({}, limit=1) == 0:
+            await asyncio.to_thread(sync_events)
+    except Exception:
+        logger.exception('Initial event sync attempt failed.')
 
-        # Match events whose start is before end of day AND whose end is after start of day (or has no end)
+    if when and when.lower() == 'today':
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
         query = {
-            "$or": [
-                {"$and": [
-                    {"startsOn_dt": {"$lte": day_end}},
-                    {"$or": [ {"endsOn_dt": {"$gte": day_start}}, {"endsOn_dt": {"$exists": False}} ]}
-                ]},
-                {"$and": [
-                    {"startsOn": {"$lte": day_end.isoformat()}},
-                    {"$or": [ {"endsOn": {"$gte": day_start.isoformat()}}, {"endsOn": {"$exists": False}} ]}
-                ]}
+            '$or': [
+                {
+                    '$and': [
+                        {'startsOn_dt': {'$lte': day_end}},
+                        {'$or': [{'endsOn_dt': {'$gte': day_start}}, {'endsOn_dt': {'$exists': False}}]},
+                    ]
+                },
+                {
+                    '$and': [
+                        {'startsOn': {'$lte': day_end.isoformat()}},
+                        {'$or': [{'endsOn': {'$gte': day_start.isoformat()}}, {'endsOn': {'$exists': False}}]},
+                    ]
+                },
             ]
         }
     else:
-        # Default: upcoming events ending after now
-        query = {
-            "$or": [
-                {"endsOn_dt": {"$gte": now}},
-                {"endsOn": {"$gte": now.isoformat()}}
-            ]
-        }
+        query = {'$or': [{'endsOn_dt': {'$gte': now}}, {'endsOn': {'$gte': now.isoformat()}}]}
 
-    # Sort by start time if available, otherwise by endsOn
-    cursor = events_col.find(query).sort([('startsOn_dt', 1), ('endsOn', 1)])
-    docs = await cursor.to_list(length=limit)
+    extra_filters = []
+    if q and q.strip():
+        safe_q = q.strip()
+        extra_filters.append(
+            {
+                '$or': [
+                    {'title': {'$regex': safe_q, '$options': 'i'}},
+                    {'description': {'$regex': safe_q, '$options': 'i'}},
+                    {'location': {'$regex': safe_q, '$options': 'i'}},
+                    {'organizationNames': {'$regex': safe_q, '$options': 'i'}},
+                ]
+            }
+        )
+    if category and category.strip():
+        extra_filters.append(
+            {
+                '$or': [
+                    {'theme': {'$regex': category.strip(), '$options': 'i'}},
+                    {'categoryNames': {'$regex': category.strip(), '$options': 'i'}},
+                    {'benefitNames': {'$regex': category.strip(), '$options': 'i'}},
+                ]
+            }
+        )
+    if organization and organization.strip():
+        extra_filters.append({'organizationNames': {'$regex': organization.strip(), '$options': 'i'}})
+    if location and location.strip():
+        extra_filters.append(
+            {
+                '$or': [
+                    {'location': {'$regex': location.strip(), '$options': 'i'}},
+                    {'shortLocation': {'$regex': location.strip(), '$options': 'i'}},
+                ]
+            }
+        )
+    if extra_filters:
+        query = {'$and': [query, *extra_filters]}
 
-    # Convert ObjectId and datetimes to JSON-serializable
+    docs = await events_col.find(query).sort([('startsOn_dt', 1), ('endsOn', 1)]).to_list(length=limit)
+
+    if not docs:
+        try:
+            await asyncio.to_thread(sync_events)
+            docs = await events_col.find(query).sort([('startsOn_dt', 1), ('endsOn', 1)]).to_list(length=limit)
+        except Exception:
+            logger.exception('Self-heal event sync failed.')
+
     out = []
     for d in docs:
         doc = dict(d)
-        # string-ify _id
         try:
             doc['id'] = str(doc.get('_id'))
         except Exception:
             doc['id'] = doc.get('_id')
         doc.pop('_id', None)
-
-        # normalize common fields
-        # startsOn_dt / endsOn_dt are likely stored as datetimes; convert to ISO
         if isinstance(doc.get('startsOn_dt'), datetime):
             doc['startsOn_dt'] = doc['startsOn_dt'].astimezone(timezone.utc).isoformat()
         if isinstance(doc.get('endsOn_dt'), datetime):
             doc['endsOn_dt'] = doc['endsOn_dt'].astimezone(timezone.utc).isoformat()
-
         out.append(doc)
-
     return out
+
+
+@app.post('/events/sync')
+async def sync_events_from_engage():
+    try:
+        result = sync_events()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Failed to sync Engage events: {str(e)}')
+    return {'detail': 'Events synced successfully', **result}
 
 
 @app.get('/events/{event_id}/is_registered')
 async def is_registered(event_id: str, payload: dict = Depends(get_current_user)):
-    """Return whether the current user is registered for the given event."""
     try:
         regs = get_registrations_collection()
     except Exception:
@@ -413,10 +473,6 @@ async def is_registered(event_id: str, payload: dict = Depends(get_current_user)
 
 @app.post('/events/{event_id}/register')
 async def register_event(event_id: str, payload: dict = Depends(get_current_user)):
-    """Register the current user for the event (id).
-
-    If already registered, returns registered=True without duplicating.
-    """
     try:
         regs = get_registrations_collection()
     except Exception:
@@ -426,22 +482,17 @@ async def register_event(event_id: str, payload: dict = Depends(get_current_user
     if not user_id:
         raise HTTPException(status_code=401, detail='Missing user id')
 
-    # Prevent duplicates
     existing = await regs.find_one({'event_id': event_id, 'user_id': user_id})
     if existing:
         return {'registered': True, 'id': str(existing.get('_id'))}
 
-    from datetime import datetime, timezone
-
-    # Attempt to fetch the event document to snapshot key fields into the registration
+    event_snapshot = None
     try:
         events_col = get_events_collection()
     except Exception:
         events_col = None
 
-    event_snapshot = None
     if events_col is not None:
-        # try several lookup strategies
         try:
             if ObjectId.is_valid(event_id):
                 ed = await events_col.find_one({'_id': ObjectId(event_id)})
@@ -450,53 +501,32 @@ async def register_event(event_id: str, payload: dict = Depends(get_current_user
         except Exception:
             ed = None
         if ed:
-            # convert _id to id string and keep common fields
             try:
                 ed['id'] = str(ed.get('_id'))
             except Exception:
                 ed['id'] = ed.get('_id')
             ed.pop('_id', None)
-            # Normalize organization names from several possible shapes
             org_names = []
             try:
-                # Direct array of names
                 if ed.get('organizationNames') and isinstance(ed.get('organizationNames'), list):
                     org_names = [str(x) for x in ed.get('organizationNames') if x]
-                # Single string
                 elif ed.get('organizationNames') and isinstance(ed.get('organizationNames'), str):
                     org_names = [ed.get('organizationNames')]
-                # organizations can be array of strings or objects
                 elif ed.get('organizations') and isinstance(ed.get('organizations'), list):
                     for o in ed.get('organizations'):
-                        if not o: continue
+                        if not o:
+                            continue
                         if isinstance(o, str):
                             org_names.append(o)
                         elif isinstance(o, dict):
                             org_names.append(o.get('name') or o.get('title') or o.get('displayName') or str(o))
-                # organizer / organizers
-                elif ed.get('organizers') and isinstance(ed.get('organizers'), list):
-                    org_names = [str(x) for x in ed.get('organizers') if x]
-                elif ed.get('organizer'):
-                    if isinstance(ed.get('organizer'), list):
-                        org_names = [str(x) for x in ed.get('organizer') if x]
-                    else:
-                        org_names = [str(ed.get('organizer'))]
-                # hosts / sponsors / org
-                elif ed.get('hosts'):
-                    org_names = [str(x) for x in (ed.get('hosts') if isinstance(ed.get('hosts'), list) else [ed.get('hosts')]) if x]
-                elif ed.get('sponsors'):
-                    org_names = [str(x) for x in (ed.get('sponsors') if isinstance(ed.get('sponsors'), list) else [ed.get('sponsors')]) if x]
-                elif ed.get('org'):
-                    org_names = [str(ed.get('org'))]
-                # try nested properties.source_name
                 elif (ed.get('properties') or {}).get('source_name'):
                     org_names = [str((ed.get('properties') or {}).get('source_name'))]
             except Exception:
                 org_names = []
-
             event_snapshot = {
                 'id': ed.get('id'),
-                'title': ed.get('title') or ed.get('name') or (ed.get('properties') or {}).get('name') or (ed.get('properties') or {}).get('source_name'),
+                'title': ed.get('title') or ed.get('name') or (ed.get('properties') or {}).get('name'),
                 'location': ed.get('location') or ed.get('venue') or (ed.get('properties') or {}).get('address'),
                 'startsOn': ed.get('startsOn_dt') or ed.get('startsOn'),
                 'endsOn': ed.get('endsOn_dt') or ed.get('endsOn'),
@@ -515,7 +545,6 @@ async def register_event(event_id: str, payload: dict = Depends(get_current_user
 
 @app.get('/registrations')
 async def get_my_registrations(limit: int = 50, payload: dict = Depends(get_current_user)):
-    """Return registrations for the current user, including event documents when available."""
     try:
         regs = get_registrations_collection()
         events_col = get_events_collection()
@@ -526,34 +555,28 @@ async def get_my_registrations(limit: int = 50, payload: dict = Depends(get_curr
     if not user_id:
         raise HTTPException(status_code=401, detail='Missing user id')
 
-    # Support registrations saved with either a string user_id or an ObjectId user_id
     query = {'$or': [{'user_id': user_id}]}
     try:
         if ObjectId.is_valid(user_id):
             query['$or'].append({'user_id': ObjectId(user_id)})
     except Exception:
         pass
-    cursor = regs.find(query).sort('created_at', -1)
-    reg_docs = await cursor.to_list(length=limit)
+
+    reg_docs = await regs.find(query).sort('created_at', -1).to_list(length=limit)
 
     out = []
     for r in reg_docs:
         event_id = r.get('event_id')
-        # Prefer an embedded snapshot if available (safer)
         event_doc = r.get('event_snapshot')
-        # If no snapshot, try to find the event in events collection using several strategies
         if not event_doc and event_id and (events_col is not None):
-            event_doc = None
             try:
                 if ObjectId.is_valid(event_id):
                     event_doc = await events_col.find_one({'_id': ObjectId(event_id)})
                 if not event_doc:
-                    # try common alternative keys
                     event_doc = await events_col.find_one({'id': event_id})
                 if not event_doc:
                     event_doc = await events_col.find_one({'source_id': event_id})
                 if not event_doc:
-                    # sometimes id stored under properties.source_id or properties.source_name
                     event_doc = await events_col.find_one({'properties.source_id': event_id})
             except Exception:
                 event_doc = None
@@ -565,21 +588,11 @@ async def get_my_registrations(limit: int = 50, payload: dict = Depends(get_curr
                 event_doc.pop('_id', None)
 
         out.append({'registration_id': str(r.get('_id')), 'created_at': r.get('created_at'), 'event': event_doc})
-
     return out
-
-
-"""
-Deprecated endpoint removed: `/registrations/user/{user_id}` was redundant with
-`GET /registrations` (which returns registrations for the current authenticated
-user). Removed to simplify the API surface. If you need per-user lookup by id,
-we can reintroduce a parameterized endpoint guarded by admin permissions.
-"""
 
 
 @app.delete('/registrations/{registration_id}')
 async def delete_registration(registration_id: str, payload: dict = Depends(get_current_user)):
-    """Delete a registration owned by the current user."""
     try:
         regs = get_registrations_collection()
     except Exception:
@@ -589,7 +602,6 @@ async def delete_registration(registration_id: str, payload: dict = Depends(get_
     if not user_id:
         raise HTTPException(status_code=401, detail='Missing user id')
 
-    # Validate ObjectId
     try:
         oid = ObjectId(registration_id)
     except Exception:
