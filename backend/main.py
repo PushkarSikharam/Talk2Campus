@@ -95,6 +95,37 @@ async def delete_class_schedule(id: str, payload: dict = Depends(get_current_use
         raise HTTPException(status_code=404, detail='Not found or not owner')
     return JSONResponse(status_code=200, content={"detail": "deleted"})
 
+
+@app.patch('/class_schedule/{id}', response_model=ClassScheduleOut)
+async def update_class_schedule(id: str, data: ClassScheduleIn, payload: dict = Depends(get_current_user)):
+    """Update a class schedule owned by the current user."""
+    user_id = payload.get('sub')
+    try:
+        obj_id = ObjectId(id)
+    except Exception:
+        raise HTTPException(status_code=400, detail='Invalid id')
+
+    # prepare update document: convert dates to ISO strings if present
+    doc = data.dict()
+    try:
+        if 'dates' in doc and isinstance(doc['dates'], list):
+            doc['dates'] = [d.isoformat() if hasattr(d, 'isoformat') else d for d in doc['dates']]
+    except Exception:
+        pass
+
+    res = await class_schedule.update_one({'_id': obj_id, 'owner_id': user_id}, {'$set': doc})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Not found or not owner')
+
+    new_doc = await class_schedule.find_one({'_id': obj_id})
+    return ClassScheduleOut(id=str(new_doc.get('_id')),
+                             owner_id=new_doc.get('owner_id'),
+                             course=new_doc.get('course'),
+                             name=new_doc.get('name'),
+                             days=new_doc.get('days'),
+                             time=new_doc.get('time'),
+                             dates=new_doc.get('dates'))
+
 class TokenResp(BaseModel):
     access_token: str
     token_type: str = "bearer"
