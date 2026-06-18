@@ -1,276 +1,212 @@
-import React from 'react';
-import { Card, Typography, Row, Col, Button, Space } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Button, Card, Col, Empty, Row, Skeleton, Space, Tag, Typography } from 'antd';
 import { Link } from 'react-router-dom';
-import { GlobalOutlined, RobotOutlined, CalendarOutlined, ArrowRightOutlined, StarFilled } from '@ant-design/icons';
+import axios from 'axios';
+import {
+  CalendarOutlined,
+  EnvironmentOutlined,
+  MessageOutlined,
+  ArrowRightOutlined,
+} from '@ant-design/icons';
+import { getEventDateText, getEventImageUrl, getEventLocation, getEventTitle, getEventType } from '../utils/eventHelpers';
 
-const { Title, Paragraph } = Typography;
+const { Paragraph, Title, Text } = Typography;
 
 const features = [
   {
-    icon: <GlobalOutlined style={{ fontSize: 48, color: '#667eea' }} />,
-    title: 'Interactive Campus Map',
-    desc: 'Quickly find buildings, event spaces, and campus facilities with our intuitive map interface.',
-    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    icon: <EnvironmentOutlined style={{ fontSize: 28 }} />,
+    title: 'Campus Navigation',
+    desc: 'Find buildings, map routes, and move across campus with clearer direction and less guesswork.',
   },
   {
-    icon: <CalendarOutlined style={{ fontSize: 48, color: '#43cea2' }} />,
-    title: 'University Event Updates',
-    desc: 'Stay informed with live notifications on campus events, activities, and important announcements.',
-    gradient: 'linear-gradient(135deg, #43cea2 0%, #185a9d 100%)',
+    icon: <CalendarOutlined style={{ fontSize: 28 }} />,
+    title: 'Live Event Discovery',
+    desc: 'Browse university events with filters, schedule awareness, and registration tracking.',
   },
   {
-    icon: <RobotOutlined style={{ fontSize: 48, color: '#f093fb' }} />,
-    title: 'AI Assistant',
-    desc: 'Get instant, reliable answers to all your university-related questions, available 24/7.',
-    gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    icon: <MessageOutlined style={{ fontSize: 28 }} />,
+    title: 'Ask Talk2Campus',
+    desc: 'Ask campus questions using current event, building, and schedule information.',
   },
 ];
 
-const Home = () => (
-  <div className="page-container" style={{ padding: '40px 0', minHeight: 'calc(100vh - 120px)' }}>
-    {/* Hero Section */}
-    <div className="fade-in" style={{ 
-      maxWidth: 1200, 
-      margin: '0 auto 60px auto', 
-      textAlign: 'center',
-      padding: '60px 24px',
-      background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
-      borderRadius: 24,
-      position: 'relative',
-      overflow: 'hidden',
-    }}>
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <Space direction="vertical" size={24} style={{ width: '100%' }}>
-          <div className="float-animation">
-            <Title level={1} style={{ 
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              fontSize: '3.5em',
-              marginBottom: 0,
-              fontWeight: 800,
-            }}>
-              🎓 Welcome to Talk2Campus
-            </Title>
-          </div>
-          
-          <Paragraph style={{ 
-            fontSize: 22, 
-            color: '#555', 
-            maxWidth: 800,
-            margin: '0 auto',
-            lineHeight: 1.8,
-          }}>
-            Your Ultimate University Companion for Navigation, Information, and Support
-          </Paragraph>
+const getStartTime = (event) => Date.parse(
+  event?.startsOn_dt || event?.startsOn || event?.startDate || event?.start_date || event?.start || ''
+);
 
-          <Space size="large" style={{ marginTop: 20 }}>
+const TodayOnCampus = () => {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    axios.get('/events?limit=24')
+      .then((response) => {
+        if (!mounted) return;
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+        const upcoming = (Array.isArray(response.data) ? response.data : [])
+          .filter((event) => Number.isFinite(getStartTime(event)) && getStartTime(event) >= todayStart)
+          .sort((a, b) => getStartTime(a) - getStartTime(b));
+        const today = upcoming.filter((event) => getStartTime(event) < todayEnd);
+        setEvents((today.length ? today : upcoming).slice(0, 3));
+      })
+      .catch(() => {
+        if (mounted) setEvents([]);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => { mounted = false; };
+  }, []);
+
+  return (
+    <section className="home-events-section">
+      <div className="section-heading">
+        <div>
+          <Text className="section-kicker">Today On Campus</Text>
+          <Title level={2} style={{ margin: '8px 0 0' }}>A quick look at what is coming up.</Title>
+        </div>
+        <Link to="/events"><Button>See all events</Button></Link>
+      </div>
+      <div className="home-event-grid">
+        {loading ? [1, 2, 3].map((item) => <Card key={item} className="home-event-card"><Skeleton active /></Card>) : null}
+        {!loading && events.length === 0 ? <Card className="home-event-empty"><Empty description="No upcoming events are available right now." /></Card> : null}
+        {!loading && events.map((event) => {
+          const imageUrl = getEventImageUrl(event);
+          return (
+            <Link to="/events" key={event.id || event._id || getEventTitle(event)} className="home-event-link">
+              <Card hoverable className="home-event-card">
+                <div className={`home-event-art ${imageUrl ? 'has-image' : ''}`} style={imageUrl ? { backgroundImage: `url("${imageUrl}")` } : undefined}>
+                  {!imageUrl ? <CalendarOutlined aria-hidden="true" /> : null}
+                </div>
+                <Tag className="pill-tag">{getEventType(event)}</Tag>
+                <Title level={4}>{getEventTitle(event)}</Title>
+                <Text>{getEventDateText(event)}</Text>
+                <Text type="secondary">{getEventLocation(event) || 'Location coming soon'}</Text>
+              </Card>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+const Home = () => (
+  <div className="page-container" style={{ padding: '28px 0 56px' }}>
+    <div className="section-shell" style={{ display: 'grid', gap: 28 }}>
+      <section className="hero-shell fade-in">
+        <div className="hero-grid">
+          <div>
+            <Text className="section-kicker">Campus Companion</Text>
+            <Title level={1} style={{ fontSize: 'clamp(2.7rem, 5vw, 4.7rem)', margin: '14px 0 18px' }}>
+              Your campus day, all in one place.
+            </Title>
+            <Paragraph style={{ fontSize: 19, maxWidth: 720, color: 'rgba(247, 242, 232, 0.88)' }}>
+              Talk2Campus brings events, navigation, and schedule context into one place so students can make faster decisions and spend less time hunting for information.
+            </Paragraph>
+
+            <Space size="middle" wrap style={{ marginTop: 22 }}>
+              <Link to="/interactive-map">
+                <Button type="primary" size="large" className="brand-button" icon={<ArrowRightOutlined />}>
+                  Open Campus Map
+                </Button>
+              </Link>
+              <Link to="/events">
+                <Button size="large" className="ghost-button">
+                  Browse Events
+                </Button>
+              </Link>
+            </Space>
+
+          </div>
+
+          <aside className="hero-note campus-now-card">
+            <Text className="section-kicker" style={{ color: '#f1dca7' }}>Your Day At TAMU-CC</Text>
+            <Title level={3} style={{ marginTop: 14, marginBottom: 12, color: '#fff8eb' }}>
+              Everything you need between classes.
+            </Title>
+            <Paragraph style={{ color: 'rgba(247, 242, 232, 0.82)' }}>
+              Find your next building, see what is happening around the Island, and keep your plans together.
+            </Paragraph>
+            <div className="auth-bullets">
+              <div className="auth-bullet"><strong>Find it.</strong> Walking directions from your location.</div>
+              <div className="auth-bullet"><strong>Join it.</strong> Student events from TAMU-CC Engage.</div>
+              <div className="auth-bullet"><strong>Plan it.</strong> Class-aware event registration.</div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section className="story-card site-panel slide-in-left">
+        <div style={{ padding: 28 }}>
+          <div className="section-heading">
+            <div>
+              <Text className="section-kicker">Built Around Student Life</Text>
+              <Title level={2} style={{ margin: '8px 0 0' }}>Less searching. More time for your campus day.</Title>
+            </div>
+          </div>
+          <Row gutter={[28, 28]}>
+            <Col xs={24} md={12}>
+              <Paragraph style={{ fontSize: 17, color: '#455468', marginBottom: 0 }}>
+                Heading to class? Start with the map. Looking for something to do? Browse events happening today or later this week.
+              </Paragraph>
+            </Col>
+            <Col xs={24} md={12}>
+              <Paragraph style={{ fontSize: 17, color: '#455468', marginBottom: 0 }}>
+                Sign in to save events and compare them with your class schedule, so a good plan does not become a time conflict.
+              </Paragraph>
+            </Col>
+          </Row>
+        </div>
+      </section>
+
+      <TodayOnCampus />
+
+      <section>
+        <div className="section-heading">
+          <div>
+            <Text className="section-kicker">Core Experience</Text>
+            <Title level={2} style={{ margin: '8px 0 0' }}>One home for the things students ask most.</Title>
+          </div>
+        </div>
+        <Row gutter={[20, 20]}>
+          {features.map((feature) => (
+            <Col xs={24} md={8} key={feature.title}>
+              <Card className="feature-card" hoverable bodyStyle={{ padding: 28, textAlign: 'center' }}>
+                <div className="feature-divider" />
+                <div className="feature-crest">{feature.icon}</div>
+                <Title level={3} style={{ marginTop: 18, marginBottom: 10 }}>{feature.title}</Title>
+                <Paragraph style={{ color: '#5a6878', marginBottom: 0 }}>{feature.desc}</Paragraph>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </section>
+
+      <section className="story-card site-panel slide-in-right">
+        <div style={{ padding: 28 }}>
+          <div className="section-heading">
+            <div>
+              <Text className="section-kicker">Get Started</Text>
+              <Title level={2} style={{ margin: '8px 0 0' }}>Start with the task you already have in mind.</Title>
+            </div>
+          </div>
+          <Space size="middle" wrap>
             <Link to="/signup">
-              <Button 
-                type="primary" 
-                size="large" 
-                icon={<StarFilled />}
-              style={{ 
-                height: 56,
-                fontSize: 18,
-                padding: '0 40px',
-                borderRadius: 28,
-              }}
-            >
-              Get Started Now
+              <Button type="primary" size="large" className="brand-button">
+                Create Account
               </Button>
             </Link>
-            <Link to="/interactive-map">
-              <Button 
-                size="large" 
-                icon={<ArrowRightOutlined />}
-              style={{ 
-                height: 56,
-                fontSize: 18,
-                padding: '0 40px',
-                borderRadius: 28,
-                background: 'white',
-                borderColor: '#667eea',
-                color: '#667eea',
-              }}
-            >
-              Explore Map
-              </Button>
+            <Link to="/ai-agent">
+              <Button size="large">Ask the Campus Assistant</Button>
             </Link>
           </Space>
-        </Space>
-      </div>
-      
-      {/* Decorative circles */}
-      <div style={{
-        position: 'absolute',
-        top: -100,
-        right: -100,
-        width: 300,
-        height: 300,
-        background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%)',
-        borderRadius: '50%',
-        filter: 'blur(60px)',
-      }} />
-      <div style={{
-        position: 'absolute',
-        bottom: -100,
-        left: -100,
-        width: 300,
-        height: 300,
-        background: 'linear-gradient(135deg, rgba(67, 206, 162, 0.2) 0%, rgba(24, 90, 157, 0.2) 100%)',
-        borderRadius: '50%',
-        filter: 'blur(60px)',
-      }} />
+        </div>
+      </section>
     </div>
-
-    {/* About Section */}
-    <Card 
-      className="slide-in-left"
-      style={{ 
-        maxWidth: 1200, 
-        margin: '0 auto 60px auto', 
-        borderRadius: 24,
-        background: 'white',
-        padding: 24,
-      }}
-    >
-      <Space direction="vertical" size={24} style={{ width: '100%' }}>
-        <Title level={2} style={{ 
-          textAlign: 'center',
-          color: '#2c3e50',
-          fontSize: '2.5em',
-        }}>
-          Navigate Campus with Confidence
-        </Title>
-        
-        <Row gutter={[32, 32]}>
-          <Col xs={24} md={12}>
-            <Paragraph style={{ fontSize: 18, lineHeight: 1.8, color: '#555' }}>
-              Talk2Campus is your all-in-one solution for university life. Our interactive map helps you 
-              locate buildings, dining halls, libraries, and study spaces—making navigation effortless 
-              whether you're a freshman finding your first class or a senior exploring new areas of campus.
-            </Paragraph>
-          </Col>
-          <Col xs={24} md={12}>
-            <Paragraph style={{ fontSize: 18, lineHeight: 1.8, color: '#555' }}>
-              But we're more than just a map! Our intelligent AI agent is ready to answer your questions 
-              about class schedules, event details, campus news, library hours, and administrative queries. 
-              Get instant, accurate information whenever you need it.
-            </Paragraph>
-          </Col>
-        </Row>
-      </Space>
-    </Card>
-
-    {/* Features Section */}
-    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-      <Title level={2} style={{ 
-        textAlign: 'center',
-        marginBottom: 48,
-        color: '#2c3e50',
-        fontSize: '2.5em',
-      }}>
-        ✨ Powerful Features
-      </Title>
-      
-      <Row gutter={[32, 32]}>
-        {features.map((feature, index) => (
-          <Col xs={24} sm={12} lg={8} key={index}>
-            <Card
-              className="fade-in"
-              style={{
-                height: '100%',
-                textAlign: 'center',
-                borderRadius: 20,
-                border: 'none',
-                background: 'white',
-                position: 'relative',
-                overflow: 'hidden',
-                animationDelay: `${index * 0.1}s`,
-              }}
-              hoverable
-            >
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 5,
-                background: feature.gradient,
-              }} />
-              
-              <div style={{
-                display: 'inline-flex',
-                padding: 20,
-                borderRadius: '50%',
-                background: `${feature.gradient}15`,
-                marginBottom: 20,
-              }}>
-                {feature.icon}
-              </div>
-              
-              <Title level={3} style={{ 
-                marginBottom: 16,
-                fontSize: '1.5em',
-                color: '#2c3e50',
-              }}>
-                {feature.title}
-              </Title>
-              
-              <Paragraph style={{ 
-                fontSize: 16, 
-                color: '#666',
-                lineHeight: 1.7,
-              }}>
-                {feature.desc}
-              </Paragraph>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-    </div>
-
-    {/* CTA Section */}
-    <Card
-      className="slide-in-right"
-      style={{
-        maxWidth: 1200,
-        margin: '60px auto 0 auto',
-        textAlign: 'center',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        borderRadius: 24,
-        border: 'none',
-        padding: 40,
-      }}
-    >
-      <Space direction="vertical" size={24} style={{ width: '100%' }}>
-        <Title level={2} style={{ color: 'white', marginBottom: 0, fontSize: '2.2em' }}>
-          Ready to Transform Your Campus Experience?
-        </Title>
-        <Paragraph style={{ color: 'rgba(255,255,255,0.95)', fontSize: 18, marginBottom: 0 }}>
-          Join thousands of students already using Talk2Campus
-        </Paragraph>
-        <Link to="/signup">
-          <Button 
-            size="large"
-          style={{ 
-            height: 56,
-            fontSize: 18,
-            padding: '0 50px',
-            borderRadius: 28,
-            background: 'white',
-            borderColor: 'white',
-            color: '#667eea',
-            fontWeight: 600,
-          }}
-        >
-          Get Started Free →
-          </Button>
-        </Link>
-      </Space>
-    </Card>
   </div>
 );
 

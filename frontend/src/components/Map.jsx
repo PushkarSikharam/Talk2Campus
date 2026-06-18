@@ -90,6 +90,31 @@ const RouteAutoZoom = ({ routeCoordinates }) => {
   return null;
 };
 
+const MapResizeHandler = () => {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    const observedElement = container.parentElement || container;
+    let frameId = null;
+    const refreshSize = () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => map.invalidateSize({ pan: false }));
+    };
+    const observer = new ResizeObserver(refreshSize);
+    observer.observe(observedElement);
+    refreshSize();
+    window.addEventListener('resize', refreshSize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', refreshSize);
+      if (frameId) cancelAnimationFrame(frameId);
+    };
+  }, [map]);
+
+  return null;
+};
+
 // Custom map controls component: renders persistent location / zoom / reset buttons using the leaflet map instance
 const MapControls = ({ userLocation }) => {
   const map = useMap();
@@ -360,6 +385,7 @@ const Map = ({ routeCoordinates, directionsProps = null, events = [], onBuilding
   const userLocationRef = useRef(null);
   const animPositionRef = useRef(null);
   const [legendCollapsed, setLegendCollapsed] = useState(false);
+  const [routeFinderOpen, setRouteFinderOpen] = useState(false);
   const mapRef = useRef(null);
 
   useEffect(() => {
@@ -473,6 +499,7 @@ const Map = ({ routeCoordinates, directionsProps = null, events = [], onBuilding
         zoomControl={false}
         whenCreated={(m) => { mapRef.current = m; }}
       >
+        <MapResizeHandler />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -567,12 +594,20 @@ const Map = ({ routeCoordinates, directionsProps = null, events = [], onBuilding
         <MapControls userLocation={userLocation} />
       </MapContainer>
 
-      {/* In-map Directions Card (moved from sidebar) - always visible */}
-      {directionsProps && (
-        <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 1200, width: 260 }}>
+      {/* Keep the map clear until a student asks for directions. */}
+      {directionsProps && !routeFinderOpen && (
+        <Button className="map-search-trigger" icon={<EnvironmentOutlined />} onClick={() => setRouteFinderOpen(true)}>
+          Find a building
+        </Button>
+      )}
+      {directionsProps && routeFinderOpen && (
+        <div className="map-route-finder">
           <Card size="small" style={{ padding: '10px 12px', borderRadius: 12, boxShadow: '0 6px 18px rgba(0,0,0,0.08)' }}>
             <Space direction="vertical" size={8} style={{ width: '100%' }}>
-              {/* header icon removed per request */}
+              <div className="map-route-finder-heading">
+                <Text strong>Where are you going?</Text>
+                <Button type="text" size="small" onClick={() => setRouteFinderOpen(false)} aria-label="Close directions">Close</Button>
+              </div>
 
               {/* From Field */}
               {!directionsProps.hasGeolocation && (

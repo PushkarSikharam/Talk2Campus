@@ -7,7 +7,7 @@
 */
 import React, { useState, useEffect, useRef } from 'react';
 import { Layout, Card, Typography, List, Space, Tag, Button, Empty, Modal, Form, InputNumber, message, Spin, Divider, Popconfirm } from 'antd';
-import { EnvironmentOutlined, ClockCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { CalendarOutlined, EnvironmentOutlined, ClockCircleOutlined, CloseOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import 'antd/dist/reset.css';
 import Map from '../components/Map';
 import axios from 'axios';
@@ -71,6 +71,7 @@ function InteractiveMap() {
   const [events, setEvents] = useState([]);
   const [mapEvents, setMapEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
+  const [eventsPanelOpen, setEventsPanelOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 900);
   const [isRegistered, setIsRegistered] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registrationId, setRegistrationId] = useState(null);
@@ -686,9 +687,9 @@ function InteractiveMap() {
   };
 
   return (
-    <div className="page-container" style={{ padding: '24px' }}>
+    <div className="page-container campus-map-page">
       {/* Page Header */}
-      <div className="fade-in" style={{ 
+      <div className="campus-map-heading fade-in" style={{ 
         textAlign: 'center', 
         marginBottom: 32,
         padding: '32px 24px',
@@ -712,10 +713,10 @@ function InteractiveMap() {
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
           }}>
-            Interactive Campus Map
+            Find your way around the Island.
           </Title>
           <Paragraph style={{ fontSize: 18, color: '#666', marginBottom: 0 }}>
-            Explore buildings, find events, and navigate your campus
+            Search a building, get a walking route, or tap a building to see what is happening there.
           </Paragraph>
         </Space>
       </div>
@@ -725,19 +726,27 @@ function InteractiveMap() {
         className="slide-in-left"
         style={{ 
           height: '75vh', 
+          position: 'relative',
           borderRadius: 16,
           overflow: 'hidden',
           boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
           border: 'none',
         }}
       >
+        {!eventsPanelOpen ? (
+          <Button className="map-events-toggle" icon={<CalendarOutlined />} onClick={() => setEventsPanelOpen(true)} aria-expanded="false" aria-controls="map-events-panel">
+            Show events ({filteredEvents.length})
+          </Button>
+        ) : null}
         <Sider
-          width={siderWidth}
+          width={eventsPanelOpen ? siderWidth : '100%'}
           style={{ 
             background: 'white', 
             position: 'relative', 
             minWidth: 150, 
-            maxWidth: '90%',
+            maxWidth: eventsPanelOpen ? '90%' : '100%',
+            flex: eventsPanelOpen ? `0 0 ${siderWidth}px` : '1 1 100%',
+            width: eventsPanelOpen ? siderWidth : '100%',
             borderRight: '1px solid #f0f0f0',
           }}
           theme="light"
@@ -818,6 +827,7 @@ function InteractiveMap() {
           {/* Enhanced Splitter Handle */}
           <div
             style={{
+              display: eventsPanelOpen ? 'block' : 'none',
               position: 'absolute',
               top: 0,
               right: 0,
@@ -838,7 +848,7 @@ function InteractiveMap() {
           />
         </Sider>
 
-        <Content style={{ background: '#fafafa', padding: 0, display: 'flex', flexDirection: 'column' }}>
+        {eventsPanelOpen ? <Content id="map-events-panel" style={{ background: '#fafafa', padding: 0, display: 'flex', flexDirection: 'column' }}>
           {/* (Search bar removed from events panel) */}
 
           {/* Events List */}
@@ -861,7 +871,10 @@ function InteractiveMap() {
                 <Title level={4} style={{ marginBottom: 0 }}>
                   Today's Events
                 </Title>
-                <Tag color="blue">{filteredEvents.length} events</Tag>
+                <Space size={8}>
+                  <Tag color="blue">{filteredEvents.length} events</Tag>
+                  <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setEventsPanelOpen(false)} aria-label="Hide events panel">Hide</Button>
+                </Space>
               </div>
 
               {filteredEvents.length > 0 ? (
@@ -982,7 +995,7 @@ function InteractiveMap() {
               </Card>
             </Space>
           </div>
-        </Content>
+        </Content> : null}
       </Layout>
 
       

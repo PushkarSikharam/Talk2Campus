@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Table, Button, Modal, Form, Input, TimePicker, DatePicker, Select, Space, Card, message } from 'antd';
+import { Table, Button, Modal, Form, Input, TimePicker, DatePicker, Select, Card, Typography, message } from 'antd';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
-const { Option } = Select;
+const { Paragraph, Text, Title } = Typography;
 
 // Remove defaultSchedule, fetch from backend instead
 
@@ -160,11 +160,18 @@ const ClassSchedule = () => {
   ];
 
   return (
-    <Card title="Class Schedule" style={{ maxWidth: 900, margin: '40px auto' }}>
-      <Table dataSource={schedule} columns={columns} pagination={false} />
-      <Button type="primary" style={{ marginTop: 16, marginBottom: 8 }} onClick={showAddModal}>
-        Add Class
-      </Button>
+    <div className="page-container student-tool-page">
+      <section className="student-tool-heading">
+        <div>
+          <Text className="section-kicker">My Week</Text>
+          <Title level={1}>Class schedule</Title>
+          <Paragraph>Keep your class times here so Talk2Campus can warn you before an event overlaps.</Paragraph>
+        </div>
+        <Button type="primary" size="large" className="brand-button" onClick={showAddModal}>Add class</Button>
+      </section>
+      <Card className="site-panel schedule-card">
+        <Table dataSource={schedule} columns={columns} pagination={false} scroll={{ x: 720 }} locale={{ emptyText: 'No classes yet. Add your first class to begin checking event conflicts.' }} />
+      </Card>
       <Modal
         title={isAdd ? "Add Class" : "Edit Class"}
         open={modalOpen}
@@ -195,7 +202,7 @@ const ClassSchedule = () => {
         </Form>
         {/* debug panel removed */}
       </Modal>
-    </Card>
+    </div>
   );
 };
 

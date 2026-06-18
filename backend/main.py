@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .auth import create_access_token, decode_access_token, hash_password, verify_password
+from .ai import router as ai_router
 from .db import (
     get_class_schedule_collection,
     get_events_collection,
@@ -29,6 +30,7 @@ load_dotenv(env_file)
 
 app = FastAPI(title='Talk2Campus Backend')
 logger = logging.getLogger(__name__)
+app.include_router(ai_router)
 
 
 def _parse_csv_env(name: str, default: str = '') -> List[str]:

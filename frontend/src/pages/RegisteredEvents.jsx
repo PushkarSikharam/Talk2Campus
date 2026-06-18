@@ -4,7 +4,7 @@
 	- Sanitizes event descriptions before rendering and checks auth state periodically.
 */
 import React, { useEffect, useState } from 'react';
-import { List, Card, Typography, Spin, Empty, Button, Modal, Divider, Space, Popconfirm, message, Tag } from 'antd';
+import { List, Card, Typography, Skeleton, Empty, Button, Modal, Space, Popconfirm, message, Tag } from 'antd';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -287,8 +287,9 @@ const RegisteredEvents = () => {
 	};
 
 	if (loading) return (
-		<div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-			<Spin size="large" />
+		<div className="page-container student-tool-page">
+			<section className="student-tool-heading"><div><Text className="section-kicker">My Plans</Text><Title level={1}>Saved events</Title></div></section>
+			<div className="saved-event-grid">{[1, 2, 3].map(item => <Card key={item} className="saved-event-card"><Skeleton active paragraph={{ rows: 4 }} /></Card>)}</div>
 		</div>
 	);
 
@@ -300,15 +301,17 @@ const RegisteredEvents = () => {
 	);
 
 	if (!registrations || registrations.length === 0) return (
-		<div style={{ padding: 24 }}>
-			<Empty description="No registered events found" />
+		<div className="page-container student-tool-page">
+			<section className="student-tool-heading"><div><Text className="section-kicker">My Plans</Text><Title level={1}>Saved events</Title><Paragraph>Events you register for will stay together here.</Paragraph></div></section>
+			<Card className="site-panel student-empty-card"><Empty description="You have not registered for an event yet"><Button type="primary" href="/events" className="brand-button">Explore events</Button></Empty></Card>
 		</div>
 	);
 
 	return (
-		<div className="page-container" style={{ padding: 24, minHeight: 'calc(100vh - 120px)' }}>
-			<Title level={2}>My Registered Events</Title>
+		<div className="page-container student-tool-page">
+			<section className="student-tool-heading"><div><Text className="section-kicker">My Plans</Text><Title level={1}>Saved events</Title><Paragraph>Everything you have registered for, ordered around your campus day.</Paragraph></div><Tag className="count-pill">{registrations.length} saved</Tag></section>
 			<List
+				className="saved-events-list"
 				grid={{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 2, xl: 3 }}
 				dataSource={registrations}
 				renderItem={(item) => {
@@ -320,7 +323,7 @@ const RegisteredEvents = () => {
 					const orgNames = extractOrganizationNames(event);
 					return (
 						<List.Item>
-							<Card hoverable style={{ borderRadius: 12 }}>
+							<Card hoverable className="saved-event-card">
 								<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
 									<div style={{ flex: 1 }}>
 										<Title level={4} style={{ marginBottom: 6 }}>{title}</Title>

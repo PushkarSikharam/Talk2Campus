@@ -77,7 +77,12 @@ export const getOrgDisplayName = (o) => {
 };
 
 export const getEventRegistrationUrl = (ev) => ev?.registrationUrl || ev?.registerUrl || ev?.registration || ev?.signupUrl || ev?.url || ev?.link || null;
-export const getEventImageUrl = (ev) => ev?.imageUrl || ev?.imagePath || ev?.image || null;
+export const getEventImageUrl = (ev) => {
+  const value = ev?.imageUrl || ev?.imagePath || ev?.image || null;
+  if (!value || String(value).toLowerCase().endsWith('.pdf')) return null;
+  if (/^https?:\/\//i.test(String(value))) return String(value);
+  return `https://se-images.campuslabs.com/clink/images/${encodeURIComponent(String(value))}?preset=large-w`;
+};
 export const getEventExternalUrl = (ev) => ev?.externalUrl || ev?.eventUrl || ev?.url || ev?.link || getEventRegistrationUrl(ev) || null;
 export const getEventTheme = (ev) => ev?.theme || ev?.type || 'Other';
 export const getEventCategories = (ev) => {

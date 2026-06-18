@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => {
     '/logout',
     '/registrations',
     '/me',
+    '/chat',
     '/health',
   ];
 

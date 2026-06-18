@@ -22,7 +22,7 @@ import {
   sanitizeFallback,
 } from '../utils/eventHelpers';
 
-const { Text } = Typography;
+const { Paragraph, Text, Title } = Typography;
 
 const EventDetailModal = ({ event, visible, onClose, onRegistrationChange }) => {
   const [sanitizedDescription, setSanitizedDescription] = useState('');
@@ -59,6 +59,7 @@ const EventDetailModal = ({ event, visible, onClose, onRegistrationChange }) => 
 
   useEffect(() => {
     let mounted = true;
+
     const checkAll = async () => {
       if (!visible || !event || (!event.id && !event._id)) {
         if (mounted) {
@@ -102,9 +103,11 @@ const EventDetailModal = ({ event, visible, onClose, onRegistrationChange }) => 
                 const ev = r.event || {};
                 return (ev.id && String(ev.id) === String(eventId)) || (ev._id && String(ev._id) === String(eventId));
               });
-              if (match && mounted) setRegistrationId(match.registration_id || match.registrationId || match.id || null);
+              if (match && mounted) {
+                setRegistrationId(match.registration_id || match.registrationId || match.id || null);
+              }
             } catch {
-              // best effort
+              // Best effort.
             }
           }
         } catch {
@@ -121,7 +124,11 @@ const EventDetailModal = ({ event, visible, onClose, onRegistrationChange }) => 
         const schedules = Array.isArray(schedRes.data) ? schedRes.data : [];
         if (!mounted) return;
         const matches = schedules.filter((s) => computeScheduleConflict(event, s));
-        setScheduleConflict(matches.length > 0 ? { conflict: true, matches: matches.map((s) => ({ course: s.course, name: s.name })) } : { conflict: false, matches: [] });
+        setScheduleConflict(
+          matches.length > 0
+            ? { conflict: true, matches: matches.map((s) => ({ course: s.course, name: s.name })) }
+            : { conflict: false, matches: [] }
+        );
         setScheduleChecked(true);
       } catch {
         if (mounted) {
@@ -228,49 +235,53 @@ const EventDetailModal = ({ event, visible, onClose, onRegistrationChange }) => 
   const attendeeCount = getEventAttendees(event);
 
   return (
-    <Modal title={getEventTitle(event)} open={visible} onCancel={onClose} footer={null} centered>
-      <Space direction="vertical" size={12} style={{ width: '100%' }}>
-        {eventImage ? <img src={eventImage} alt={getEventTitle(event)} style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 12 }} /> : null}
+    <Modal
+      title={getEventTitle(event)}
+      open={visible}
+      onCancel={onClose}
+      footer={null}
+      centered
+      wrapClassName="event-modal-shell"
+    >
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        {eventImage ? <img src={eventImage} alt={getEventTitle(event)} className="modal-media" /> : null}
 
-        <div>
-          <Tag color={eventTypeColors[getEventType(event)] || 'blue'}>{getEventType(event)}</Tag>
-          <Text type="secondary" style={{ marginLeft: 8 }}>{getEventLocation(event)}</Text>
+        <div className="modal-section">
+          <Space wrap>
+            <Tag color={eventTypeColors[getEventType(event)] || 'blue'} className="pill-tag">{getEventType(event)}</Tag>
+            {eventTheme ? <Tag className="pill-tag">{eventTheme}</Tag> : null}
+            {attendeeCount != null ? <Tag color="gold" className="pill-tag">RSVPs: {attendeeCount}</Tag> : null}
+          </Space>
+          <Text type="secondary">{getEventLocation(event)}</Text>
         </div>
 
-        <div>
-          <Tag>{eventTheme}</Tag>
-          {attendeeCount != null ? <Tag color="gold">RSVPs: {attendeeCount}</Tag> : null}
-          {categories.slice(0, 3).map((category) => <Tag key={category} color="purple">{category}</Tag>)}
-          {benefits.slice(0, 3).map((benefit) => <Tag key={benefit} color="green">{benefit}</Tag>)}
-        </div>
-
-        <div>
+        <div className="modal-metadata">
           <div>
             <Text strong>Starts: </Text>
             <Text type="secondary">{getEventDateText(event) || '-'}</Text>
           </div>
           {getEventEndDateText(event) ? (
-            <div style={{ marginTop: 6 }}>
+            <div>
               <Text strong>Ends: </Text>
               <Text type="secondary">{getEventEndDateText(event)}</Text>
             </div>
           ) : null}
-          <div style={{ marginTop: 8 }}>
+          <div>
             {scheduleChecked ? (
               scheduleConflict ? (
                 scheduleConflict.conflict ? (
                   <div>
-                    <Tag color="red">Conflict</Tag>
-                    <div style={{ marginTop: 6 }}>
+                    <Tag color="red" className="pill-tag">Conflict</Tag>
+                    <div style={{ marginTop: 8 }}>
                       {scheduleConflict.matches?.length > 0 ? scheduleConflict.matches.map((m, idx) => (
-                        <div key={idx} style={{ fontSize: 13 }}>
+                        <div key={idx}>
                           <Text type="danger">{m.course || m.name || 'Scheduled class'}</Text>
                         </div>
                       )) : <Text type="danger">Scheduled class</Text>}
                     </div>
                   </div>
                 ) : (
-                  <Tag color="green">No Conflict</Tag>
+                  <Tag color="green" className="pill-tag">No Conflict</Tag>
                 )
               ) : (
                 <Text type="secondary">Schedule check unavailable</Text>
@@ -281,23 +292,38 @@ const EventDetailModal = ({ event, visible, onClose, onRegistrationChange }) => 
           </div>
         </div>
 
-        <div>
-          {sanitizedDescription ? <div dangerouslySetInnerHTML={{ __html: sanitizedDescription }} /> : <Text>No description available.</Text>}
+        <div className="modal-section">
+          <Title level={5} style={{ margin: 0 }}>About this event</Title>
+          {sanitizedDescription ? (
+            <div dangerouslySetInnerHTML={{ __html: sanitizedDescription }} />
+          ) : (
+            <Paragraph style={{ marginBottom: 0 }}>No description available.</Paragraph>
+          )}
         </div>
 
-        {getEventOrganizations(event).length > 0 ? (
-          <div>
-            <Text strong>Organizations:</Text>
-            <div style={{ marginTop: 8 }}>
-              {getEventOrganizations(event).map((o, idx) => <Tag key={idx} style={{ marginBottom: 6 }}>{getOrgDisplayName(o)}</Tag>)}
-            </div>
+        {categories.length > 0 || benefits.length > 0 ? (
+          <div className="modal-section">
+            <Title level={5} style={{ margin: 0 }}>Highlights</Title>
+            <Space wrap>
+              {categories.slice(0, 4).map((category) => <Tag key={category} className="pill-tag">{category}</Tag>)}
+              {benefits.slice(0, 4).map((benefit) => <Tag key={benefit} color="green" className="pill-tag">{benefit}</Tag>)}
+            </Space>
           </div>
         ) : null}
 
-        <Divider style={{ margin: '8px 0' }} />
+        {getEventOrganizations(event).length > 0 ? (
+          <div className="modal-section">
+            <Title level={5} style={{ margin: 0 }}>Organizations</Title>
+            <Space wrap>
+              {getEventOrganizations(event).map((o, idx) => <Tag key={idx} className="pill-tag">{getOrgDisplayName(o)}</Tag>)}
+            </Space>
+          </div>
+        ) : null}
 
-        <div>
-          <Text strong>Event Link: </Text>
+        <Divider style={{ margin: 0 }} />
+
+        <div className="modal-section">
+          <Title level={5} style={{ margin: 0 }}>Official link</Title>
           {eventUrl ? (
             <Button type="link" href={eventUrl} target="_blank" rel="noreferrer" style={{ paddingInline: 0 }}>
               Open on Engage
@@ -307,13 +333,15 @@ const EventDetailModal = ({ event, visible, onClose, onRegistrationChange }) => 
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
           <Button onClick={onClose}>Close</Button>
           {registrationUrl ? <Button href={registrationUrl} target="_blank" rel="noreferrer">Official RSVP</Button> : null}
           {isAuthenticated !== true ? (
             <Button disabled>Login to register</Button>
           ) : !isRegistered ? (
-            <Button type="primary" loading={registerLoading} onClick={handleRegister}>Register</Button>
+            <Button type="primary" loading={registerLoading} onClick={handleRegister} className="brand-button">
+              Register
+            </Button>
           ) : (
             <Popconfirm title="Unregister from this event?" onConfirm={handleUnregister} okText="Yes" cancelText="No">
               <Button danger loading={unregistering}>Unregister</Button>

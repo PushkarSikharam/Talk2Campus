@@ -170,6 +170,11 @@ def normalize_event(raw_event: dict[str, Any]) -> dict[str, Any]:
     category_names = raw_event.get('categoryNames') if isinstance(raw_event.get('categoryNames'), list) else []
     benefit_names = raw_event.get('benefitNames') if isinstance(raw_event.get('benefitNames'), list) else []
     image_path = _normalize_text(raw_event.get('imagePath'))
+    image_url = None
+    if image_path and not image_path.lower().endswith('.pdf'):
+        image_url = image_path if image_path.startswith(('http://', 'https://')) else (
+            f'https://se-images.campuslabs.com/clink/images/{image_path}?preset=large-w'
+        )
 
     normalized = dict(raw_event)
     normalized.update(
@@ -192,7 +197,7 @@ def normalize_event(raw_event: dict[str, Any]) -> dict[str, Any]:
             'categoryNames': category_names,
             'benefitNames': benefit_names,
             'rsvpTotal': raw_event.get('rsvpTotal'),
-            'imageUrl': image_path,
+            'imageUrl': image_url,
             'externalUrl': f'https://tamucc.campuslabs.com/engage/event/{source_id}',
             'lastSyncedAt': datetime.now(timezone.utc),
         }
