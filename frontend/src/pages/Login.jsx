@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button, Card, Form, Input, Space, Typography, message } from 'antd';
 import { LockOutlined, LoginOutlined, UserOutlined } from '@ant-design/icons';
+import { loginUser } from '../services/campusApi';
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -10,24 +11,14 @@ const Login = ({ handleLogin }) => {
 
   const onFinish = async (values) => {
     try {
-      const resp = await fetch('/login', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: values.username, password: values.password }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) {
-        message.error(data.detail || 'Login failed');
-        return;
-      }
+      await loginUser(values.username, values.password);
       message.success('Login successful. Welcome back.');
       setTimeout(() => {
         handleLogin();
         navigate('/interactive-map');
       }, 500);
-    } catch {
-      message.error('Network error during login');
+    } catch (error) {
+      message.error(error.message || 'Network error during login');
     }
   };
 

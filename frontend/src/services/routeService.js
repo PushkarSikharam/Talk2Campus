@@ -16,6 +16,18 @@ export const getRouteCoordinates = async (
   destinationLng,
   mode = 'driving'
 ) => {
+  const details = await getRouteDetails(originLat, originLng, destinationLat, destinationLng, mode);
+  return details.coordinates;
+};
+
+export const getRouteDetails = async (
+  originLat,
+  originLng,
+  destinationLat,
+  destinationLng,
+  mode = 'driving',
+  client = axios
+) => {
   try {
     if (!originLat || !originLng || !destinationLat || !destinationLng) {
       throw new Error('All coordinates are required');
@@ -25,7 +37,7 @@ export const getRouteCoordinates = async (
       throw new Error('Invalid coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.');
     }
 
-    const response = await axios.get('/route', {
+    const response = await client.get('/route', {
       params: {
         oLat: originLat,
         oLng: originLng,
@@ -35,7 +47,12 @@ export const getRouteCoordinates = async (
       },
     });
 
-    return response.data.coordinates || [];
+    return {
+      coordinates: response.data.coordinates || [],
+      distanceMeters: Number(response.data.distanceMeters) || null,
+      durationSeconds: Number(response.data.durationSeconds) || null,
+      steps: Array.isArray(response.data.steps) ? response.data.steps : [],
+    };
   } catch (error) {
     logRouteServiceIssue('Error fetching route:', error?.message || error);
     throw error;

@@ -378,7 +378,13 @@ const BuildingsPolygons = ({ events = [], onBuildingSelect = null, directionsPro
   });
 };
 
-const Map = ({ routeCoordinates, directionsProps = null, events = [], onBuildingSelect = null }) => {
+const formatDistance = (meters) => meters >= 1609
+  ? `${(meters / 1609.344).toFixed(1)} mi`
+  : `${Math.round(meters)} m`;
+
+const formatDuration = (seconds) => `${Math.max(1, Math.round(seconds / 60))} min`;
+
+const Map = ({ routeCoordinates, routeDetails = null, directionsProps = null, events = [], onBuildingSelect = null }) => {
   const [userLocation, setUserLocation] = useState(null);
   const [animPosition, setAnimPosition] = useState(null);
   const animRef = React.useRef({ raf: null, startTime: null, start: null, end: null, duration: 800 });
@@ -672,6 +678,21 @@ const Map = ({ routeCoordinates, directionsProps = null, events = [], onBuilding
           </Card>
         </div>
       )}
+
+      {routeDetails?.durationSeconds ? (
+        <div className="route-summary-card" aria-live="polite">
+          <Text strong>{routeDetails.destination || 'Walking route'}</Text>
+          <div className="route-summary-metrics">
+            <span>{formatDuration(routeDetails.durationSeconds)}</span>
+            {routeDetails.distanceMeters ? <span>{formatDistance(routeDetails.distanceMeters)}</span> : null}
+          </div>
+          {routeDetails.steps?.length ? (
+            <ol>
+              {routeDetails.steps.slice(0, 3).map((step, index) => <li key={`${step.instruction}-${index}`}>{step.instruction}</li>)}
+            </ol>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Legend (collapses automatically when a route is active) */}
       <div style={{ position: 'absolute', bottom: 20, right: 20, zIndex: 1000 }}>

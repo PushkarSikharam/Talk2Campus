@@ -5,6 +5,7 @@
 */
 import React, { useEffect, useState } from 'react';
 import { List, Card, Typography, Skeleton, Empty, Button, Modal, Space, Popconfirm, message, Tag } from 'antd';
+import { formatCampusDateTime } from '../utils/eventHelpers';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -92,22 +93,12 @@ const getEventType = (ev) => ev?.type || (ev?.categories && ev.categories[0]) ||
 const getEventDateText = (ev) => {
 	const start = ev?.startsOn_dt || ev?.startsOn || ev?.startDate || ev?.start;
 	if (!start) return '';
-	try {
-		const d = new Date(start);
-		return d.toLocaleString();
-	} catch {
-		return String(start);
-	}
+	return formatCampusDateTime(start);
 };
 const getEventEndDateText = (ev) => {
 	const end = ev?.endsOn_dt || ev?.endsOn || ev?.endDate || ev?.end;
 	if (!end) return '';
-	try {
-		const d = new Date(end);
-		return d.toLocaleString();
-	} catch {
-		return String(end);
-	}
+	return formatCampusDateTime(end);
 };
 
 // Countdown helper: returns { ms, label, status }

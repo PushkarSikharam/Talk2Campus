@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Divider, Modal, Popconfirm, Space, Spin, Tag, Typography, message } from 'antd';
 import axios from 'axios';
+import EventArtwork from './EventArtwork';
+import { registerForEvent } from '../services/campusApi';
 import {
   computeScheduleConflict,
   eventTypeColors,
@@ -11,7 +13,6 @@ import {
   getEventDescription,
   getEventEndDateText,
   getEventExternalUrl,
-  getEventImageUrl,
   getEventLocation,
   getEventOrganizations,
   getEventRegistrationUrl,
@@ -151,7 +152,7 @@ const EventDetailModal = ({ event, visible, onClose, onRegistrationChange }) => 
 
     setRegisterLoading(true);
     try {
-      const resp = await axios.post(`/events/${eventId}/register`);
+      const resp = await registerForEvent(eventId);
       setIsRegistered(true);
       const newId = resp?.data?.id || resp?.data?.registration_id || null;
       if (newId) setRegistrationId(newId);
@@ -226,7 +227,6 @@ const EventDetailModal = ({ event, visible, onClose, onRegistrationChange }) => 
 
   if (!event) return null;
 
-  const eventImage = getEventImageUrl(event);
   const eventUrl = getEventExternalUrl(event);
   const registrationUrl = getEventRegistrationUrl(event);
   const eventTheme = getEventTheme(event);
@@ -244,7 +244,7 @@ const EventDetailModal = ({ event, visible, onClose, onRegistrationChange }) => 
       wrapClassName="event-modal-shell"
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        {eventImage ? <img src={eventImage} alt={getEventTitle(event)} className="modal-media" /> : null}
+        <EventArtwork event={event} className="modal-media modal-event-art" />
 
         <div className="modal-section">
           <Space wrap>

@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Layout, Spin } from 'antd';
 import NavBar from './components/NavBar';
+import AppErrorBoundary from './components/AppErrorBoundary';
 
 const Home = lazy(() => import('./pages/Home'));
 const InteractiveMap = lazy(() => import('./pages/InteractiveMap'));
@@ -46,6 +47,7 @@ const App = () => {
         </Header>
         <Layout>
           <Content style={{ padding: '24px 50px' }}>
+            <AppErrorBoundary>
             <Suspense fallback={routeFallback}>
               <Routes>
                 <Route path="/interactive-map" element={<InteractiveMap />} />
@@ -59,6 +61,7 @@ const App = () => {
                 <Route path="/" element={<Home />} />
               </Routes>
             </Suspense>
+            </AppErrorBoundary>
           </Content>
         </Layout>
       </Layout>

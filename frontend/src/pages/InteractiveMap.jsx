@@ -16,7 +16,8 @@ const API_BASE = '';
 axios.defaults.withCredentials = true;
 // make axios use the same backend origin for all relative calls
 axios.defaults.baseURL = API_BASE;
-import { getRouteCoordinates } from '../services/routeService';
+import { getRouteDetails } from '../services/routeService';
+import { formatCampusDateTime } from '../utils/eventHelpers';
 
 const { Sider, Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -53,6 +54,7 @@ function InteractiveMap() {
   const [eventModalVisible, setEventModalVisible] = useState(false);
   const [sanitizedDescription, setSanitizedDescription] = useState('');
   const [routeCoordinates, setRouteCoordinates] = useState(null);
+  const [routeDetails, setRouteDetails] = useState(null);
   const [routeModalVisible, setRouteModalVisible] = useState(false);
   const [routeLoading, setRouteLoading] = useState(false);
   const [form] = Form.useForm();
@@ -239,23 +241,11 @@ function InteractiveMap() {
   const getEventType = (ev) => ev.type || (ev.categories && ev.categories[0]) || 'other';
   const getEventDateText = (ev) => {
     const start = ev.startsOn_dt || ev.startsOn || ev.startDate || ev.start;
-    if (!start) return '';
-    try {
-      const d = new Date(start);
-      return d.toLocaleString();
-    } catch {
-      return String(start);
-    }
+    return formatCampusDateTime(start);
   };
   const getEventEndDateText = (ev) => {
     const end = ev.endsOn_dt || ev.endsOn || ev.endDate || ev.end;
-    if (!end) return '';
-    try {
-      const d = new Date(end);
-      return d.toLocaleString();
-    } catch {
-      return String(end);
-    }
+    return formatCampusDateTime(end);
   };
 
   const getEventDescription = (ev) => ev.description || ev.body || ev.details || ev.summary || '';
@@ -644,13 +634,15 @@ function InteractiveMap() {
     // Fetch walking route
     setDirectionLoading(true);
     try {
-      const coordinates = await getRouteCoordinates(oLat, oLng, dLat, dLng, 'walking');
-      setRouteCoordinates(coordinates);
+      const details = await getRouteDetails(oLat, oLng, dLat, dLng, 'walking');
+      setRouteCoordinates(details.coordinates);
+      setRouteDetails({ ...details, destination: dest.name });
       message.success(`Route to ${dest.name} calculated!`);
     } catch (error) {
       logInteractiveMapIssue('Route fetch error:', error);
       // Fallback: draw straight-line polyline if backend fails
       setRouteCoordinates([[oLat, oLng], [dLat, dLng]]);
+      setRouteDetails(null);
       const serverMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
       message.warning(`Could not fetch directions (${serverMsg}). Showing straight-line path instead.`);
     } finally {
@@ -673,9 +665,9 @@ function InteractiveMap() {
     setRouteLoading(true);
     try {
       const { originLat, originLng, destLat, destLng } = values;
-      const coordinates = await getRouteCoordinates(originLat, originLng, destLat, destLng);
-      
-      setRouteCoordinates(coordinates);
+      const details = await getRouteDetails(originLat, originLng, destLat, destLng);
+      setRouteCoordinates(details.coordinates);
+      setRouteDetails(details);
       setRouteModalVisible(false);
       message.success('Route calculated successfully!');
       form.resetFields();
@@ -739,6 +731,7 @@ function InteractiveMap() {
           </Button>
         ) : null}
         <Sider
+          className="map-sider"
           width={eventsPanelOpen ? siderWidth : '100%'}
           style={{ 
             background: 'white', 
@@ -759,6 +752,7 @@ function InteractiveMap() {
             
             <Map
               routeCoordinates={routeCoordinates}
+              routeDetails={routeDetails}
               onRouteChange={setRouteCoordinates}
               events={mapEvents}
               onBuildingSelect={(buildingName, eventsForBuilding, shortName) => {
@@ -848,7 +842,7 @@ function InteractiveMap() {
           />
         </Sider>
 
-        {eventsPanelOpen ? <Content id="map-events-panel" style={{ background: '#fafafa', padding: 0, display: 'flex', flexDirection: 'column' }}>
+        {eventsPanelOpen ? <Content id="map-events-panel" className="map-events-panel" style={{ background: '#fafafa', padding: 0, display: 'flex', flexDirection: 'column' }}>
           {/* (Search bar removed from events panel) */}
 
           {/* Events List */}

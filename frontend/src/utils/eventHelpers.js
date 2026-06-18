@@ -5,6 +5,29 @@ export const eventTypeColors = {
   social: '#feca57',
 };
 
+export const CAMPUS_TIME_ZONE = 'America/Chicago';
+
+export const getEventStartValue = (ev) =>
+  ev?.startsOn_dt || ev?.startsOn || ev?.startDate || ev?.start_date || ev?.startDateTime || ev?.start || null;
+
+export const getEventEndValue = (ev) =>
+  ev?.endsOn_dt || ev?.endsOn || ev?.endDate || ev?.end_date || ev?.endDateTime || ev?.end || null;
+
+export const formatCampusDateTime = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: CAMPUS_TIME_ZONE,
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).formatToParts(date);
+  const part = (type) => parts.find((item) => item.type === type)?.value || '';
+  return `${part('month')} ${part('day')} · ${part('hour')}:${part('minute')} ${part('dayPeriod')}`;
+};
+
 export const getEventTitle = (ev) => ev?.title || ev?.name || ev?.displayName || 'Event';
 
 export const getEventLocation = (ev) =>
@@ -25,23 +48,55 @@ export const getEventAttendees = (ev) => {
 };
 
 export const getEventDateText = (ev) => {
-  const start = ev?.startsOn_dt || ev?.startsOn || ev?.startDate || ev?.start;
-  if (!start) return '';
-  try {
-    return new Date(start).toLocaleString();
-  } catch {
-    return String(start);
-  }
+  return formatCampusDateTime(getEventStartValue(ev));
 };
 
 export const getEventEndDateText = (ev) => {
-  const end = ev?.endsOn_dt || ev?.endsOn || ev?.endDate || ev?.end;
-  if (!end) return '';
-  try {
-    return new Date(end).toLocaleString();
-  } catch {
-    return String(end);
-  }
+  return formatCampusDateTime(getEventEndValue(ev));
+};
+
+const campusDateKey = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'unknown';
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: CAMPUS_TIME_ZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  const part = (type) => parts.find((item) => item.type === type)?.value || '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+};
+
+export const dedupeEvents = (events = []) => {
+  const seen = new Set();
+  return events.filter((event) => {
+    const key = [getEventTitle(event), getEventStartValue(event), getEventLocation(event)]
+      .map((part) => String(part || '').trim().toLowerCase())
+      .join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+export const groupEventsByDay = (events = [], nowValue = Date.now()) => {
+  const todayKey = campusDateKey(nowValue);
+  const tomorrowKey = campusDateKey(nowValue + 24 * 60 * 60 * 1000);
+  const groups = new Map();
+  events.forEach((event) => {
+    const start = getEventStartValue(event);
+    const key = campusDateKey(start);
+    let label = 'Date to be announced';
+    if (key === todayKey) label = 'Today';
+    else if (key === tomorrowKey) label = 'Tomorrow';
+    else if (key !== 'unknown') {
+      label = new Intl.DateTimeFormat('en-US', {
+        timeZone: CAMPUS_TIME_ZONE, weekday: 'long', month: 'short', day: 'numeric',
+      }).format(new Date(start));
+    }
+    if (!groups.has(key)) groups.set(key, { key, label, events: [] });
+    groups.get(key).events.push(event);
+  });
+  return Array.from(groups.values());
 };
 
 export const getEventDescription = (ev) => {

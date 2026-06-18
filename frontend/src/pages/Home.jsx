@@ -8,7 +8,8 @@ import {
   MessageOutlined,
   ArrowRightOutlined,
 } from '@ant-design/icons';
-import { getEventDateText, getEventImageUrl, getEventLocation, getEventTitle, getEventType } from '../utils/eventHelpers';
+import { getEventDateText, getEventLocation, getEventTitle, getEventType } from '../utils/eventHelpers';
+import EventArtwork from '../components/EventArtwork';
 
 const { Paragraph, Title, Text } = Typography;
 
@@ -74,13 +75,10 @@ const TodayOnCampus = () => {
         {loading ? [1, 2, 3].map((item) => <Card key={item} className="home-event-card"><Skeleton active /></Card>) : null}
         {!loading && events.length === 0 ? <Card className="home-event-empty"><Empty description="No upcoming events are available right now." /></Card> : null}
         {!loading && events.map((event) => {
-          const imageUrl = getEventImageUrl(event);
           return (
             <Link to="/events" key={event.id || event._id || getEventTitle(event)} className="home-event-link">
               <Card hoverable className="home-event-card">
-                <div className={`home-event-art ${imageUrl ? 'has-image' : ''}`} style={imageUrl ? { backgroundImage: `url("${imageUrl}")` } : undefined}>
-                  {!imageUrl ? <CalendarOutlined aria-hidden="true" /> : null}
-                </div>
+                <EventArtwork event={event} className="home-event-art" />
                 <Tag className="pill-tag">{getEventType(event)}</Tag>
                 <Title level={4}>{getEventTitle(event)}</Title>
                 <Text>{getEventDateText(event)}</Text>

@@ -1,18 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, Empty, Input, Select, Skeleton, Space, Tag, Typography, message } from 'antd';
 import axios from 'axios';
-import { CalendarOutlined, ClockCircleOutlined, EnvironmentOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { ClockCircleOutlined, EnvironmentOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import EventDetailModal from '../components/EventDetailModal';
+import EventArtwork from '../components/EventArtwork';
+import { syncCampusEvents } from '../services/campusApi';
 import {
+  dedupeEvents,
   eventTypeColors,
   getEventBenefits,
   getEventDateText,
-  getEventImageUrl,
   getEventLocation,
   getEventOrganizations,
   getEventTitle,
   getEventType,
   getOrgDisplayName,
+  groupEventsByDay,
 } from '../utils/eventHelpers';
 
 const { Paragraph, Text, Title } = Typography;
@@ -52,6 +55,7 @@ const EventsPage = () => {
   const [selectedOrg, setSelectedOrg] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [eventModalVisible, setEventModalVisible] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(24);
 
   const loadEvents = async ({ showToast = false } = {}) => {
     setLoading(true);
@@ -88,7 +92,7 @@ const EventsPage = () => {
   const handleRefresh = async () => {
     setSyncing(true);
     try {
-      await axios.post('/events/sync');
+      await syncCampusEvents();
       await loadEvents();
       message.success('Events refreshed');
     } catch (err) {
@@ -160,6 +164,12 @@ const EventsPage = () => {
     });
   }, [events, searchText, selectedShort, selectedTime, selectedTheme, selectedOrg, startOfToday, startOfWeekEnd]);
 
+  const dedupedFiltered = useMemo(() => dedupeEvents(filtered), [filtered]);
+  const visibleEvents = useMemo(() => dedupedFiltered.slice(0, visibleCount), [dedupedFiltered, visibleCount]);
+  const groupedEvents = useMemo(() => groupEventsByDay(visibleEvents), [visibleEvents]);
+
+  useEffect(() => setVisibleCount(24), [searchText, selectedShort, selectedTime, selectedTheme, selectedOrg]);
+
   const shortOptions = useMemo(
     () => [{ value: '', label: 'All places' }, ...Array.from(new Set(events.map((ev) => ev._shortLocNormalized).filter(Boolean))).map((value) => ({ value, label: shortMap[value] || value }))],
     [events, shortMap]
@@ -227,7 +237,7 @@ const EventsPage = () => {
               <Select showSearch optionFilterProp="label" value={selectedOrg} onChange={setSelectedOrg} options={orgOptions} />
             </div>
             <Space wrap className="summary-tags">
-              <Tag color="blue">Showing {filtered.length} events</Tag>
+              <Tag color="blue">Showing {Math.min(visibleCount, dedupedFiltered.length)} of {dedupedFiltered.length} events</Tag>
               <Tag>Loaded {events.length}</Tag>
               {activeFilterCount > 0 ? <Tag color="orange">{activeFilterCount} filters active</Tag> : null}
             </Space>
@@ -255,22 +265,24 @@ const EventsPage = () => {
                 </Card>
               ))}
             </div>
-          ) : filtered.length > 0 ? (
-            <div className="event-card-gallery">
-              {filtered.map((ev) => {
+          ) : dedupedFiltered.length > 0 ? (
+            <div className="event-groups">
+              {groupedEvents.map((group) => (
+              <section className="event-day-group" key={group.key}>
+                <Title level={3} className="event-day-heading">{group.label}</Title>
+                <div className="event-card-gallery">
+              {group.events.map((ev) => {
                 const title = getEventTitle(ev);
                 const location = getEventLocation(ev);
                 const type = getEventType(ev);
                 const color = eventTypeColors[type] || '#43cea2';
                 const startText = getEventDateText(ev);
                 const organizations = ev._organizationsDisplay || [];
-                const imageUrl = getEventImageUrl(ev);
                 return (
                   <Card key={ev.id || ev._id || `${title}-${startText}`} hoverable className="event-row-card">
-                    <div className={`event-card-media ${imageUrl ? 'has-image' : ''}`} style={imageUrl ? { backgroundImage: `url("${imageUrl}")` } : undefined}>
-                      {!imageUrl ? <CalendarOutlined aria-hidden="true" /> : null}
+                    <EventArtwork event={ev} className="event-card-media">
                       <Tag className="event-media-tag">{type}</Tag>
-                    </div>
+                    </EventArtwork>
                     <div className="event-card-grid">
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
@@ -306,6 +318,14 @@ const EventsPage = () => {
                   </Card>
                 );
               })}
+                </div>
+              </section>
+              ))}
+              {visibleCount < dedupedFiltered.length ? (
+                <div className="load-more-events">
+                  <Button size="large" onClick={() => setVisibleCount((count) => count + 24)}>Load more events</Button>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div style={{ padding: 48 }}>

@@ -345,7 +345,7 @@ async def get_route(oLat: float, oLng: float, dLat: float, dLng: float, mode: st
         response = requests.post(
             f'{OPENROUTESERVICE_BASE_URL}/v2/directions/{profile}/geojson',
             headers={'Authorization': OPENROUTESERVICE_API_KEY, 'Content-Type': 'application/json'},
-            json={'coordinates': [[oLng, oLat], [dLng, dLat]], 'instructions': False},
+            json={'coordinates': [[oLng, oLat], [dLng, dLat]], 'instructions': True},
             timeout=20,
         )
         if response.status_code in (401, 403):
@@ -369,8 +369,27 @@ async def get_route(oLat: float, oLng: float, dLat: float, dLng: float, mode: st
         if not geometry:
             raise HTTPException(status_code=404, detail='Route geometry was not returned by OpenRouteService')
 
+        feature_properties = features[0].get('properties') or {}
+        summary = feature_properties.get('summary') or {}
+        segments = feature_properties.get('segments') or []
+        steps = []
+        for segment in segments:
+            for step in segment.get('steps') or []:
+                instruction = step.get('instruction')
+                if instruction:
+                    steps.append({
+                        'instruction': instruction,
+                        'distance': step.get('distance'),
+                        'duration': step.get('duration'),
+                    })
+
         coordinates = [[lat, lng] for lng, lat in geometry]
-        return {'coordinates': coordinates}
+        return {
+            'coordinates': coordinates,
+            'distanceMeters': summary.get('distance'),
+            'durationSeconds': summary.get('duration'),
+            'steps': steps,
+        }
     except HTTPException:
         raise
     except Exception as e:
